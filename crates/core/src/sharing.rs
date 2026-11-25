@@ -247,6 +247,10 @@ fn handle(state: &State, mut request: Request, token: &str) -> bool {
             (Method::Get, "/harnesses") => server::json(&state.harnesses_for_phone(device)).boxed(),
             (Method::Get, "/view") => server::json(&state.view_for_phone(device)).boxed(),
             (Method::Get, "/sessions") => server::sessions_response(state).boxed(),
+            (Method::Get, path) if path.starts_with("/sessions/") => {
+                // TODO: Enforce this Phone's View for ticket routes when sessions are filtered.
+                server::tickets_response(state, path).boxed()
+            }
             (Method::Post, "/paste") => paste(state, device, &mut request).boxed(),
             (Method::Post, "/heartbeat") => Response::empty(204).boxed(),
             _ => Response::from_string("not found")
