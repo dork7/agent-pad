@@ -2,7 +2,7 @@
 
 **What to build:** Each pending **Ticket** shown on the phone or in the Pad (from #19) has an "Implement" button. Tapping it **Pastes** an implement **Invocation** for that Ticket, followed by Enter, so the agent at the cursor starts building it. The text comes from a per-**Harness** template, editable in the Pad. The default is `Implement the ticket at <ticket path> ` for every Harness. Ticket text is never sent by the phone, only IDs.
 
-**Blocked by:** #5, #16, #20
+**Blocked by:** #5, #16, ticket 19 (no GitHub issue yet)
 
 **Status:** triage
 
