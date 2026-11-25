@@ -1,5 +1,6 @@
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
+mod accessibility;
 mod commands;
 mod config;
 mod hotkey;
@@ -12,6 +13,8 @@ use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Emitter, Manager, WebviewWindow, WindowEvent};
 use tauri_plugin_global_shortcut::ShortcutState;
+
+use accessibility::{accessibility_granted, require_access};
 
 const PAD: &str = "pad";
 const SHARING_CHANGED: &str = "sharing-changed";
@@ -67,11 +70,14 @@ fn tray_menu_action(app: &AppHandle, action: &str) -> tauri::Result<()> {
         "open-on-phone" => {
             show_pad(&pad)?;
             let core = app.state::<Core>();
-            let error = if core.sharing_status().is_none() {
-                core.start_sharing().err().map(|error| error.to_string())
-            } else {
-                None
-            };
+            let error = require_access(accessibility_granted())
+                .and_then(|()| {
+                    if core.sharing_status().is_none() {
+                        core.start_sharing().map_err(|error| error.to_string())?;
+                    }
+                    Ok(())
+                })
+                .err();
             app.emit(SHARING_CHANGED, error)?;
         }
         "stop-sharing" => {
@@ -86,7 +92,8 @@ fn tray_menu_action(app: &AppHandle, action: &str) -> tauri::Result<()> {
 
 fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let open = MenuItem::with_id(app, "open-pad", "Open Pad", true, None::<&str>)?;
-    let phone = MenuItem::with_id(app, "open-on-phone", "Open on phone", true, None::<&str>)?;
+    let granted = accessibility_granted();
+    let phone = MenuItem::with_id(app, "open-on-phone", "Open on phone", granted, None::<&str>)?;
     let stop = MenuItem::with_id(app, "stop-sharing", "Stop sharing", true, None::<&str>)?;
     let separator = PredefinedMenuItem::separator(app)?;
     let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
@@ -108,11 +115,57 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
             }
         })
         .build(app)?;
+
+    #[cfg(target_os = "macos")]
+    watch_tray_accessibility(app.clone(), phone, granted)?;
+
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn watch_tray_accessibility(
+    app: AppHandle,
+    phone: MenuItem<tauri::Wry>,
+    mut granted: bool,
+) -> std::io::Result<()> {
+    std::thread::Builder::new()
+        .name("skills-pad-accessibility".into())
+        .spawn(move || loop {
+            std::thread::sleep(std::time::Duration::from_secs(2));
+            let current = accessibility_granted();
+            if current == granted {
+                continue;
+            }
+
+            if let Err(error) = phone.set_enabled(current) {
+                eprintln!("Skills Pad could not update the sharing menu item: {error}");
+                break;
+            }
+            granted = current;
+            if !granted {
+                let app = app.clone();
+                if let Err(error) = app.clone().run_on_main_thread(move || {
+                    if !accessibility_granted() {
+                        app.state::<Core>().stop_sharing();
+                    }
+                }) {
+                    eprintln!(
+                        "Skills Pad could not stop sharing after access was revoked: {error}"
+                    );
+                    break;
+                }
+            }
+        })?;
     Ok(())
 }
 
 fn main() -> tauri::Result<()> {
     tauri::Builder::default()
+        .plugin(
+            tauri_plugin_autostart::Builder::new()
+                .app_name("Skills Pad")
+                .build(),
+        )
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, _, event| {
@@ -157,6 +210,8 @@ fn main() -> tauri::Result<()> {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            accessibility::accessibility_granted,
+            accessibility::open_accessibility_settings,
             commands::list_skills,
             commands::list_harnesses,
             commands::start_sharing,

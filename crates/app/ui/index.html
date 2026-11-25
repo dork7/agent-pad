@@ -23,6 +23,16 @@
   </header>
   <main>
     <p id="sharing-error" class="error" role="alert" hidden></p>
+    <p id="accessibility-status-error" class="error" role="alert" hidden></p>
+
+    <section id="accessibility" class="card" aria-labelledby="accessibility-title" hidden>
+      <h2 id="accessibility-title">Accessibility access required</h2>
+      <p class="muted">Skills Pad needs Accessibility access to paste at your cursor. In System Settings, go to Privacy &amp; Security → Accessibility and turn on Skills Pad.</p>
+      <div class="form-row">
+        <button id="grant-access" class="btn" type="button">Grant access</button>
+      </div>
+      <p id="grant-access-error" class="error" role="alert" hidden></p>
+    </section>
 
     <section id="pairing" class="card share" aria-labelledby="pairing-title" hidden>
       <h2 id="pairing-title">Open on phone</h2>
@@ -52,6 +62,14 @@
           <span class="muted">A tap runs the skill instead of only typing it.</span>
         </span>
       </label>
+    </section>
+
+    <section class="card">
+      <label class="toggle">
+        <input id="start-at-login" type="checkbox" aria-describedby="start-at-login-error" disabled>
+        <b>Start at login</b>
+      </label>
+      <p id="start-at-login-error" class="error" role="alert" hidden></p>
     </section>
 
     <section class="card">

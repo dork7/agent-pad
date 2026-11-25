@@ -3,6 +3,8 @@ use std::net::IpAddr;
 use skills_pad_core::{Core, Harness, Phone, PhoneError, Settings, SharingInfo, Skill};
 use tauri::State;
 
+use crate::accessibility::{accessibility_granted, require_access};
+
 #[tauri::command]
 pub fn list_skills(core: State<'_, Core>) -> Vec<Skill> {
     core.list_skills()
@@ -15,6 +17,7 @@ pub fn list_harnesses(core: State<'_, Core>) -> Vec<Harness> {
 
 #[tauri::command]
 pub fn start_sharing(core: State<'_, Core>) -> Result<SharingInfo, String> {
+    require_access(accessibility_granted())?;
     core.start_sharing().map_err(|error| error.to_string())
 }
 
