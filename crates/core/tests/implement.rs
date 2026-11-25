@@ -178,3 +178,37 @@ fn the_template_is_per_harness_editable_and_persisted() {
         "Implement the ticket at {path}"
     );
 }
+
+#[test]
+fn a_phone_cannot_see_or_implement_tickets_of_sessions_outside_its_view() {
+    let w = world();
+    w.core
+        .set_sharing_address_override(Some(Ipv4Addr::LOCALHOST.into()));
+    let info = w.core.start_sharing().unwrap();
+    let pairing = ureq::get(&info.url).call().unwrap();
+    let cookies: Vec<String> = pairing
+        .all("Set-Cookie")
+        .iter()
+        .map(|c| c.split(';').next().unwrap().to_string())
+        .collect();
+    let device = cookies
+        .iter()
+        .find_map(|c| c.strip_prefix("skills_pad_device="))
+        .unwrap()
+        .to_string();
+    let cookie = cookies.join("; ");
+    let base = format!("http://{}", SocketAddr::new(info.address, info.port));
+    w.core
+        .set_phone_view(&device, Some(vec!["h:codex".into()]))
+        .unwrap();
+
+    let list = ureq::get(&format!("{base}/sessions/claude-1/tickets"))
+        .set("Cookie", &cookie)
+        .call();
+    assert!(matches!(list, Err(ureq::Error::Status(403, _))));
+    assert_eq!(
+        post(&implement_url(&base, "claude-1", READY), Some(&cookie)).0,
+        403
+    );
+    assert!(w.paster.events().is_empty());
+}

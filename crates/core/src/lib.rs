@@ -26,7 +26,7 @@ use std::sync::{Arc, Mutex, RwLock};
 
 pub use clock::{Clock, SystemClock};
 pub use harness::{CustomHarness, Harness};
-pub use hooks::ClaudeHooksPreview;
+pub use hooks::{ClaudeHooksPreview, CodexHooksPreview, CODEX_HOOKS_RESTART_NOTICE};
 pub use paste::{PadWindow, Paster, SystemPaster};
 pub use phones::{Phone, PhoneError};
 pub use profiles::{Profile, ProfileError};
@@ -54,6 +54,7 @@ pub struct CoreConfig {
 pub struct Core {
     state: Arc<State>,
     hook_listener: hooks::Listener,
+    codex_hook_listener: hooks::Listener,
     server: server::Running,
     sharing: Mutex<sharing::Sharing>,
 }
@@ -140,12 +141,15 @@ impl Core {
             sessions: Default::default(),
         });
         let server = server::start(state.clone())?;
-        let hook_listener = hooks::Listener::new(&state.home, server.addr.port())?;
+        let port = server.addr.port();
+        let hook_listener = hooks::Listener::new(&state.home, port, hooks::Harness::Claude)?;
+        let codex_hook_listener = hooks::Listener::new(&state.home, port, hooks::Harness::Codex)?;
         Ok(Core {
             state,
             server,
             sharing: Default::default(),
             hook_listener,
+            codex_hook_listener,
         })
     }
 

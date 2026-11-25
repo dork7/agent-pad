@@ -57,7 +57,12 @@ fn handle(state: &State, mut request: Request) {
         (Method::Get, path) if path.starts_with("/sessions/") => tickets_response(state, path)
             .with_header(Header::from_bytes("Cache-Control", "no-store").expect("valid header")),
         (Method::Post, path) if path.starts_with("/sessions/") => implement_response(state, path),
-        (Method::Post, "/hooks/claude") => hooks::receive(state, &mut request),
+        (Method::Post, "/hooks/claude") => {
+            hooks::receive(state, &mut request, hooks::Harness::Claude)
+        }
+        (Method::Post, "/hooks/codex") => {
+            hooks::receive(state, &mut request, hooks::Harness::Codex)
+        }
         _ => Response::from_string("not found").with_status_code(404),
     };
     let _ = request.respond(response);

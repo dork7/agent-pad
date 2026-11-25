@@ -248,14 +248,20 @@ fn handle(state: &State, mut request: Request, token: &str) -> bool {
             (Method::Get, "/view") => server::json(&state.view_for_phone(device)).boxed(),
             (Method::Get, "/snippets") => server::json(&state.snippets_for_phone(device)).boxed(),
             (Method::Post, "/paste-snippet") => paste_snippet(state, device, &mut request).boxed(),
-            (Method::Get, "/sessions") => server::sessions_response(state).boxed(),
+            (Method::Get, "/sessions") => server::json(&state.sessions_for_phone(device)).boxed(),
             (Method::Get, path) if path.starts_with("/sessions/") => {
-                // TODO: Enforce this Phone's View for ticket routes when sessions are filtered.
-                server::tickets_response(state, path).boxed()
+                if sees_session(state, device, path) {
+                    server::tickets_response(state, path).boxed()
+                } else {
+                    outside_view().boxed()
+                }
             }
             (Method::Post, path) if path.starts_with("/sessions/") => {
-                // TODO(ticket 14): refuse sessions outside this Phone's View.
-                server::implement_response(state, path).boxed()
+                if sees_session(state, device, path) {
+                    server::implement_response(state, path).boxed()
+                } else {
+                    outside_view().boxed()
+                }
             }
             (Method::Post, "/paste") => paste(state, device, &mut request).boxed(),
             (Method::Post, "/heartbeat") => Response::empty(204).boxed(),
@@ -333,6 +339,31 @@ fn paste_result(result: Result<(), PasteError>, id: &str) -> Response<io::Cursor
             server::json_status(404, &serde_json::json!({ "error": "unknown snippet" }))
         }
     }
+}
+
+/// Whether the Session named in `/sessions/<id>/...` is in this Phone's View. Unknown
+/// sessions pass through so the route answers 404 for them.
+fn sees_session(state: &State, device: &str, path: &str) -> bool {
+    let Some(raw) = path
+        .strip_prefix("/sessions/")
+        .and_then(|rest| rest.split('/').next())
+    else {
+        return false;
+    };
+    let id = percent_encoding::percent_decode_str(raw).decode_utf8_lossy();
+    let known = state.list_sessions().iter().any(|s| s.session_id == id);
+    !known
+        || state
+            .sessions_for_phone(device)
+            .iter()
+            .any(|s| s.session_id == id)
+}
+
+fn outside_view() -> Response<io::Cursor<Vec<u8>>> {
+    server::json_status(
+        403,
+        &serde_json::json!({ "error": "not in this phone's view" }),
+    )
 }
 
 /// `POST /paste-snippet` with `{"id": "<snippet id>"}`.
