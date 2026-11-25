@@ -1,8 +1,12 @@
 use std::net::IpAddr;
 use std::path::PathBuf;
 
+use skills_pad_core::{
+    ClaudeHooksPreview, CodexHooksPreview, ImplementError, Preset, Profile, Session, Snippet,
+    Ticket, TicketSummary, CLAUDE_HOOKS_RESTART_NOTICE, CODEX_HOOKS_RESTART_NOTICE,
+};
 use skills_pad_core::{Core, Directory, Harness, Phone, PhoneError, Settings, SharingInfo, Skill};
-use tauri::State;
+use tauri::{AppHandle, Manager, State};
 
 use crate::accessibility::{accessibility_granted, require_access};
 
@@ -183,4 +187,222 @@ pub fn set_template(
 pub fn reset_template(core: State<'_, Core>, harness: String) -> Result<(), String> {
     core.reset_template(&harness)
         .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn preview_claude_hooks(core: State<'_, Core>) -> Result<ClaudeHooksPreview, String> {
+    core.preview_claude_hooks()
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn apply_claude_hooks(
+    core: State<'_, Core>,
+    preview: ClaudeHooksPreview,
+) -> Result<&'static str, String> {
+    core.apply_claude_hooks(&preview)
+        .map_err(|error| error.to_string())?;
+    Ok(CLAUDE_HOOKS_RESTART_NOTICE)
+}
+
+#[tauri::command]
+pub fn remove_claude_hooks(core: State<'_, Core>) -> Result<(), String> {
+    core.remove_claude_hooks()
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn preview_codex_hooks(core: State<'_, Core>) -> Result<CodexHooksPreview, String> {
+    core.preview_codex_hooks()
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn apply_codex_hooks(
+    core: State<'_, Core>,
+    preview: CodexHooksPreview,
+) -> Result<&'static str, String> {
+    core.apply_codex_hooks(&preview)
+        .map_err(|error| error.to_string())?;
+    Ok(CODEX_HOOKS_RESTART_NOTICE)
+}
+
+#[tauri::command]
+pub fn remove_codex_hooks(core: State<'_, Core>) -> Result<(), String> {
+    core.remove_codex_hooks().map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn list_sessions(core: State<'_, Core>) -> Vec<Session> {
+    core.list_sessions()
+}
+
+// Core accepts a bare session ID for ticket operations, although session tracking is per harness.
+fn require_unambiguous_session(core: &Core, session_id: &str) -> Result<(), String> {
+    if core
+        .list_sessions()
+        .iter()
+        .filter(|session| session.session_id == session_id)
+        .take(2)
+        .count()
+        > 1
+    {
+        return Err("More than one harness is using this session ID. Open a new session to access its tickets.".into());
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn pending_tickets(
+    core: State<'_, Core>,
+    session_id: String,
+) -> Result<Vec<TicketSummary>, String> {
+    require_unambiguous_session(&core, &session_id)?;
+    core.pending_tickets(&session_id)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn ticket(
+    core: State<'_, Core>,
+    session_id: String,
+    ticket_id: String,
+) -> Result<Ticket, String> {
+    require_unambiguous_session(&core, &session_id)?;
+    core.ticket(&session_id, &ticket_id)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn ticket_pattern(core: State<'_, Core>) -> Option<String> {
+    core.ticket_pattern()
+}
+
+#[tauri::command]
+pub fn set_ticket_pattern(core: State<'_, Core>, pattern: Option<String>) -> Result<(), String> {
+    core.set_ticket_pattern(pattern)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn implement_template(core: State<'_, Core>, harness: String) -> String {
+    core.implement_template(&harness)
+}
+
+#[tauri::command]
+pub fn set_implement_template(
+    core: State<'_, Core>,
+    harness: String,
+    template: Option<String>,
+) -> Result<(), String> {
+    core.set_implement_template(&harness, template.as_deref())
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub async fn implement_ticket(
+    app: AppHandle,
+    session_id: String,
+    ticket_id: String,
+) -> Result<(), String> {
+    if !accessibility_granted() {
+        return Err("Grant Accessibility access in the Pad to send tickets.".into());
+    }
+    // The paste worker hides the Pad on the main thread before typing.
+    tauri::async_runtime::spawn_blocking(move || {
+        let core = app.state::<Core>();
+        require_unambiguous_session(&core, &session_id)?;
+        core.implement_ticket(&session_id, &ticket_id)
+            .map(|_| ())
+            .map_err(|error| match error {
+                ImplementError::Ticket(error) => error.to_string(),
+                ImplementError::Blocked => "A pending ticket blocks this ticket.".into(),
+                ImplementError::NotPending => "This ticket is no longer pending.".into(),
+            })
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
+pub fn list_profiles(core: State<'_, Core>) -> (Vec<Profile>, Option<String>) {
+    core.list_profiles()
+}
+
+#[tauri::command]
+pub fn save_profile(core: State<'_, Core>, name: String) -> Result<(), String> {
+    core.save_profile(&name).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn switch_profile(core: State<'_, Core>, name: String) -> Result<(), String> {
+    core.switch_profile(&name)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn rename_profile(core: State<'_, Core>, name: String, new_name: String) -> Result<(), String> {
+    core.rename_profile(&name, &new_name)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn delete_profile(core: State<'_, Core>, name: String) -> Result<(), String> {
+    core.delete_profile(&name)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn list_presets(core: State<'_, Core>, skill_id: String) -> Vec<Preset> {
+    core.list_presets(&skill_id)
+}
+
+#[tauri::command]
+pub fn add_preset(core: State<'_, Core>, skill_id: String, text: String) -> Result<String, String> {
+    core.add_preset(&skill_id, &text)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn update_preset(core: State<'_, Core>, id: String, text: String) -> Result<(), String> {
+    core.update_preset(&id, &text)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn delete_preset(core: State<'_, Core>, id: String) -> Result<(), String> {
+    core.delete_preset(&id).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn list_snippets(core: State<'_, Core>) -> Vec<Snippet> {
+    core.list_snippets()
+}
+
+#[tauri::command]
+pub fn add_snippet(core: State<'_, Core>, title: String, text: String) -> Result<String, String> {
+    core.add_snippet(&title, &text)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn update_snippet(
+    core: State<'_, Core>,
+    id: String,
+    title: String,
+    text: String,
+) -> Result<(), String> {
+    core.update_snippet(&id, &title, &text)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn move_snippet(core: State<'_, Core>, id: String, index: usize) -> Result<(), String> {
+    core.move_snippet(&id, index)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn delete_snippet(core: State<'_, Core>, id: String) -> Result<(), String> {
+    core.delete_snippet(&id).map_err(|error| error.to_string())
 }

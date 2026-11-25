@@ -4,15 +4,21 @@
 
 **Blocked by:** #5, #10
 
-**Status:** in-progress (Core done; phone and Pad UI pending)
+**Status:** done (manual checks pending)
 
 **GitHub:** #17
 
-- [ ] Presets are created, edited and deleted in the Pad and are saved in settings
+- [x] Presets are created, edited and deleted in the Pad and are saved in settings
 - [ ] A skill with presets shows them on the phone beside the plain tap; plain tap still pastes the bare Invocation
 - [x] The pasted text is the Invocation, then the preset text, with a trailing space
 - [x] The phone sends a skill ID and a preset ID only; arbitrary text is rejected by the Core
 - [ ] Deleting a preset removes it from phones live
 - [x] Presets belong to a skill by harness and name, so they survive rescans
 
-**Notes:** Skills carry `presets: [{id, text}]` (empty by default). `POST /paste` accepts an optional `preset` ID and pastes `<invocation> <preset> `. Core commands: `list_presets(skill_id)`, `add_preset`, `update_preset` and `delete_preset`, saved in settings. Deleting a preset removes it on the phone's next reload. Still to build: phone buttons and the Pad editor.
+**Notes:** Skills carry `presets: [{id, text}]` (empty by default). `POST /paste` accepts an optional `preset` ID and pastes `<invocation> <preset> `. Core commands: `list_presets(skill_id)`, `add_preset`, `update_preset` and `delete_preset`, saved in settings. Deleting a preset removes it on the phone's next reload. The Pad searches discovered skills and manages argument presets for the selected skill.
+
+Phone preset buttons and live inventory refresh are implemented on `build/specs` (`cededc6`). The phone-side checkboxes in this branch track its current source tree.
+
+## Manual checks pending
+
+- [ ] Add, edit, and delete a preset in the Pad and check persistence after restart. On the phone UI from build/specs, verify the bare invocation, the preset invocation, and that a deleted preset disappears after reload.

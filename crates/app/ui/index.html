@@ -7,21 +7,56 @@
   <link rel="stylesheet" href="pad.css">
   <script src="pad.js" defer></script>
   <script src="settings.js" defer></script>
+  <script src="workspace.js" defer></script>
+  <script src="markdown.js" defer></script>
+  <script src="agents.js" defer></script>
+  <script src="saved-text.js" defer></script>
 </head>
 <body>
   <header class="toolbar">
-    <span class="pill" role="status">
-      <span id="sharing-dot" class="dot" aria-hidden="true"></span>
-      <span id="sharing-status">Checking sharing…</span>
-    </span>
-    <button id="open-on-phone" class="btn primary" type="button" disabled>
-      <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
-        <path d="M3 3h8v8H3zm2 2v4h4V5zm8-2h8v8h-8zm2 2v4h4V5zM3 13h8v8H3zm2 2v4h4v-4zm8-2h2v2h-2zm4 0h4v2h-4zm-4 4h2v4h-2zm4 0h2v2h2v2h-4zm2-2h2v2h-2z"/>
-      </svg>
-      Open on phone
-    </button>
-    <button id="stop-sharing" class="btn danger" type="button" hidden>Stop sharing</button>
+    <label class="profile-picker">Profile
+      <select id="profiles" disabled></select>
+    </label>
+    <button class="btn" id="save-profile" type="button" disabled>Save as…</button>
+    <details class="profile-menu" id="profile-menu" hidden>
+      <summary class="btn" aria-label="Manage profile" title="Manage profile">⋯</summary>
+      <div class="card">
+        <button class="btn" id="rename-profile" type="button">Rename…</button>
+        <button class="btn danger" id="delete-profile" type="button">Delete…</button>
+      </div>
+    </details>
+    <div class="sharing-controls">
+      <span class="pill" role="status">
+        <span id="sharing-dot" class="dot" aria-hidden="true"></span>
+        <span id="sharing-status">Checking sharing…</span>
+      </span>
+      <button id="open-on-phone" class="btn primary" type="button" disabled>
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+          <path d="M3 3h8v8H3zm2 2v4h4V5zm8-2h8v8h-8zm2 2v4h4V5zM3 13h8v8H3zm2 2v4h4v-4zm8-2h2v2h-2zm4 0h4v2h-4zm-4 4h2v4h-2zm4 0h2v2h2v2h-4zm2-2h2v2h-2z"/>
+        </svg>
+        Open on phone
+      </button>
+      <button id="stop-sharing" class="btn danger" type="button" hidden>Stop sharing</button>
+    </div>
   </header>
+  <form id="profile-form" class="profile-form" hidden>
+    <div class="form-row">
+      <label id="profile-name-field" class="field">Profile name
+        <input id="profile-name" autocomplete="off" required>
+      </label>
+      <p id="profile-confirm"></p>
+      <button class="btn" id="profile-submit" type="submit">Save profile</button>
+      <button class="btn" id="profile-cancel" type="button">Cancel</button>
+    </div>
+  </form>
+  <p id="profile-status" class="visually-hidden" role="status"></p>
+  <p id="profile-error" class="profile-error error" role="alert" hidden></p>
+  <nav class="pad-nav" aria-label="Pad sections">
+    <button class="btn" type="button" aria-controls="phones-panel" aria-pressed="true">Phones</button>
+    <button class="btn" type="button" aria-controls="agents-panel" aria-pressed="false">Agents</button>
+    <button class="btn" type="button" aria-controls="saved-text-panel" aria-pressed="false">Skills &amp; snippets</button>
+    <button class="btn" type="button" aria-controls="settings-panel" aria-pressed="false">Settings</button>
+  </nav>
   <main>
     <p id="sharing-error" class="error" role="alert" hidden></p>
     <p id="accessibility-status-error" class="error" role="alert" hidden></p>
@@ -35,27 +70,82 @@
       <p id="grant-access-error" class="error" role="alert" hidden></p>
     </section>
 
-    <section id="pairing" class="card share" aria-labelledby="pairing-title" hidden>
-      <h2 id="pairing-title">Open on phone</h2>
-      <p class="muted">Scan the QR code with your phone’s camera.</p>
-      <img id="qr" width="216" height="216" alt="QR code for the sharing URL">
-      <p id="sharing-url" class="url"></p>
+    <div id="phones-panel" class="panel-stack">
+      <section id="pairing" class="card share" aria-labelledby="pairing-title" hidden>
+        <h2 id="pairing-title" tabindex="-1">Open on phone</h2>
+        <p class="muted">Scan the QR code with your phone’s camera.</p>
+        <img id="qr" width="216" height="216" alt="QR code for the sharing URL">
+        <p id="sharing-url" class="url"></p>
+      </section>
+
+      <section class="card" aria-labelledby="phones-heading">
+        <h2 id="phones-heading" tabindex="-1">Phones</h2>
+        <p class="muted">Drag a chip onto a phone to choose what it sees. Changes apply live.</p>
+        <ul id="chip-palette" class="palette" aria-label="Available chips"></ul>
+        <p id="chip-message" class="muted" role="status">Looking for chips…</p>
+        <ul id="phones" class="phones"></ul>
+        <p id="phones-message" class="muted" role="status">No phones yet. Choose Open on phone and scan the QR code.</p>
+        <p id="phones-status" class="visually-hidden" role="status"></p>
+        <p id="phones-error" class="error" role="alert" hidden></p>
+      </section>
+
+    </div>
+
+    <section id="agents-panel" class="card" aria-labelledby="agents-heading" hidden>
+      <div class="section-head">
+        <h2 id="agents-heading" tabindex="-1">Agents</h2>
+        <button class="btn" id="session-settings" type="button">Session settings</button>
+      </div>
+      <p id="sessions-message" class="muted">Looking for sessions…</p>
+      <p id="sessions-error" class="error" role="alert" hidden></p>
+      <p id="implement-status" class="muted" role="status" hidden></p>
+      <ul id="sessions" class="session-list"></ul>
     </section>
 
-    <section class="card" aria-labelledby="phones-heading">
-      <h2 id="phones-heading" tabindex="-1">Phones</h2>
-      <p class="muted">Drag a harness or folder onto a phone to choose what it sees. Changes apply live.</p>
-      <ul id="chip-palette" class="palette" aria-label="Available chips"></ul>
-      <p id="chip-message" class="muted" role="status">Looking for chips…</p>
-      <ul id="phones" class="phones"></ul>
-      <p id="phones-message" class="muted" role="status">No phones yet. Choose Open on phone and scan the QR code.</p>
-      <p id="phones-status" class="visually-hidden" role="status"></p>
-      <p id="phones-error" class="error" role="alert" hidden></p>
+    <section id="saved-text-panel" class="panel-stack" aria-label="Skills and snippets" hidden>
+      <section class="card" aria-labelledby="skills-heading">
+        <h2 id="skills-heading">Skills</h2>
+        <div class="form-row">
+          <label class="field">Search skills <input id="skill-search" type="search" autocomplete="off"></label>
+          <button id="refresh-skills" type="button" class="btn">Refresh</button>
+        </div>
+        <label class="field skill-select">Skill <select id="skill-select" disabled></select></label>
+        <div id="presets" hidden>
+          <h3>Argument presets</h3>
+          <p class="muted">Preset text is appended to the skill invocation.</p>
+          <div id="preset-list" class="editor-list"></div>
+        </div>
+        <p id="skills-error" class="error" role="alert" hidden></p>
+        <p id="skills-status" class="muted" role="status" hidden></p>
+      </section>
+      <section class="card" aria-labelledby="snippets-heading">
+        <h2 id="snippets-heading">Snippets</h2>
+        <p class="muted">Drag snippets or use the Up and Down buttons to change their order.</p>
+        <div id="snippet-list" class="editor-list"></div>
+        <p id="snippets-error" class="error" role="alert" hidden></p>
+        <p id="snippets-status" class="muted" role="status" hidden></p>
+      </section>
     </section>
 
-    <section class="settings" aria-labelledby="settings-heading">
+    <section id="settings-panel" class="settings" aria-labelledby="settings-heading" hidden>
       <h2 id="settings-heading">Settings</h2>
       <p id="settings-error" class="error" role="alert" hidden></p>
+
+      <section class="card" aria-labelledby="session-settings-heading">
+        <h3 id="session-settings-heading" tabindex="-1">Show session status</h3>
+        <p class="muted">Install local hooks to see Claude Code and Codex sessions.</p>
+        <div id="hook-settings" class="editor-list"></div>
+        <div id="threshold-setting"></div>
+      </section>
+
+      <section class="card" aria-labelledby="ticket-settings-heading">
+        <h3 id="ticket-settings-heading">Project tickets</h3>
+        <p class="muted">The pattern is relative to each project. Use forward slashes and <code>*</code> within a path segment.</p>
+        <div id="ticket-pattern-setting"></div>
+        <h3 class="subheading">Implement templates</h3>
+        <p class="muted">Use <code>{path}</code> where the ticket’s project-relative path should appear.</p>
+        <div id="implement-settings" class="editor-list"></div>
+      </section>
 
       <section class="card" aria-labelledby="directories-heading">
         <h3 id="directories-heading">Skill Directories</h3>
@@ -155,5 +245,27 @@
       </section>
     </section>
   </main>
+
+  <dialog id="tickets-dialog" aria-labelledby="tickets-title">
+    <header class="section-head">
+      <h2 id="tickets-title" tabindex="-1">Pending tickets</h2>
+      <form method="dialog"><button class="btn" type="submit">Close</button></form>
+    </header>
+    <p class="muted path" id="tickets-project"></p>
+    <div id="ticket-nav" class="form-row">
+      <button class="btn" type="button" id="tickets-refresh">Refresh</button>
+      <button class="btn" type="button" id="tickets-back" hidden>Back to tickets</button>
+    </div>
+    <div id="implement-warning" class="notice" hidden>
+      <p>The command is pasted and Enter is pressed in whichever app has focus after the Pad hides. Focus this session’s terminal before opening the Pad.</p>
+      <div class="form-row">
+        <button class="btn primary" type="button" id="implement-continue">Continue</button>
+        <button class="btn" type="button" id="implement-cancel">Cancel</button>
+      </div>
+    </div>
+    <p id="tickets-message" class="muted" role="status" hidden></p>
+    <p id="tickets-error" class="error" role="alert" hidden></p>
+    <div id="tickets-content"></div>
+  </dialog>
 </body>
 </html>

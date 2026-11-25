@@ -1,7 +1,9 @@
 use std::path::PathBuf;
 use std::sync::Mutex;
+use std::time::Duration;
 
 use serde::Serialize;
+use skills_pad_core::Core;
 use tauri::{AppHandle, State};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
 
@@ -20,8 +22,10 @@ pub struct HotkeyInfo {
     warning: Option<String>,
 }
 
+const DEFAULT_STUCK_THRESHOLD_SECONDS: u32 = 300;
+
 impl HotkeySettings {
-    pub fn register_at_startup(app: &AppHandle, path: PathBuf) -> Mutex<Self> {
+    pub fn register_at_startup(app: &AppHandle, path: PathBuf, core: &Core) -> Mutex<Self> {
         let (config, warning) = match load_config(&path) {
             Ok(config) => (config, None),
             Err(error) => (
@@ -35,6 +39,14 @@ impl HotkeySettings {
             active: None,
             warning,
         };
+
+        if let Some(seconds) = settings
+            .config
+            .stuck_threshold_seconds
+            .filter(|seconds| *seconds > 0)
+        {
+            core.set_stuck_threshold(Duration::from_secs(u64::from(seconds)));
+        }
 
         let default = default_hotkey(std::env::consts::OS);
         match register(app, &settings.config.hotkey) {
@@ -53,6 +65,13 @@ impl HotkeySettings {
             }
         }
         Mutex::new(settings)
+    }
+
+    fn stuck_threshold(&self) -> u32 {
+        self.config
+            .stuck_threshold_seconds
+            .filter(|seconds| *seconds > 0)
+            .unwrap_or(DEFAULT_STUCK_THRESHOLD_SECONDS)
     }
 
     fn warn(&mut self, message: String) {
@@ -146,6 +165,29 @@ pub fn set_hotkey(
     hotkey: String,
 ) -> Result<HotkeyInfo, String> {
     settings.lock().unwrap().rebind(&app, &hotkey)
+}
+
+#[tauri::command]
+pub fn stuck_threshold(settings: State<'_, Mutex<HotkeySettings>>) -> u32 {
+    settings.lock().unwrap().stuck_threshold()
+}
+
+#[tauri::command]
+pub fn set_stuck_threshold(
+    settings: State<'_, Mutex<HotkeySettings>>,
+    core: State<'_, Core>,
+    seconds: u32,
+) -> Result<(), String> {
+    if seconds == 0 {
+        return Err("Enter a positive number of seconds.".into());
+    }
+    let mut settings = settings.lock().unwrap();
+    let mut config = settings.config.clone();
+    config.stuck_threshold_seconds = Some(seconds);
+    save_config(&settings.path, &config).map_err(|error| error.to_string())?;
+    settings.config = config;
+    core.set_stuck_threshold(Duration::from_secs(u64::from(seconds)));
+    Ok(())
 }
 
 #[cfg(target_os = "macos")]
