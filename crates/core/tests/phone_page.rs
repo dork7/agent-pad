@@ -113,3 +113,21 @@ fn implement_posts_only_ids_after_the_focus_note_and_reports_outcomes() {
     assert!(page.contains("typeof body?.error === 'string'"));
     assert!(page.contains("toast('Sent to agent')"));
 }
+
+#[test]
+fn the_page_offers_presets_and_a_snippets_tab() {
+    let page = phone_page();
+    // Presets paste by ID next to the plain tap.
+    assert!(page.contains("{ id: skill.id, preset: preset.id }"));
+    // Snippets come from /snippets, have their own tab and search, and paste by ID.
+    assert!(page.contains("fetch('/snippets')"));
+    assert!(page.contains("name: 'Snippets'"));
+    assert!(page.contains("n.title.toLowerCase().includes(q) || n.text.toLowerCase().includes(q)"));
+    assert!(page.contains("fetch('/paste-snippet'"));
+}
+
+#[test]
+fn blockers_are_shown_by_ticket_number() {
+    let page = phone_page();
+    assert!(page.contains("const blockers = numbers || ticket.blocked_by?.raw;"));
+}

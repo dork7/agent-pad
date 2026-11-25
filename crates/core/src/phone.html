@@ -34,6 +34,14 @@
   .row { display: block; width: 100%; min-height: 56px; text-align: left; padding: 12px 4px;
     border-bottom: 1px solid var(--line); }
   .row:active { background: var(--surface-2); }
+  .with-presets { border-bottom: 1px solid var(--line); padding-bottom: 10px; }
+  .with-presets .row { border-bottom: 0; padding-bottom: 6px; }
+  .presets { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 4px; }
+  .presets button { min-height: 40px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--accent);
+    color: var(--accent); font: 600 14px ui-monospace, SFMono-Regular, Menlo, monospace; max-width: 100%;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .presets button:active { background: var(--surface-2); }
+  .row.snippet b { display: block; font-size: 16px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .row code { display: block; font: 600 17px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--accent);
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .row small { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
@@ -170,7 +178,7 @@
   // A 2-second, 16x16 black, silent H.264 clip. Inline because iOS only plays videos from
   // servers that support range requests, and data URIs need none.
   const KEEPAWAKE_MP4 = 'data:video/mp4;base64,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X21lPTEgdHJlbGxpcz0xIDh4OGRjdD0wIGNxbT0wIGRlYWR6b25lPTIxLDExIGZhc3RfcHNraXA9MSBjaHJvbWFfcXBfb2Zmc2V0PS0yIHRocmVhZHM9MSBsb29rYWhlYWRfdGhyZWFkcz0xIHNsaWNlZF90aHJlYWRzPTAgbnI9MCBkZWNpbWF0ZT0xIGludGVybGFjZWQ9MCBibHVyYXlfY29tcGF0PTAgY29uc3RyYWluZWRfaW50cmE9MCBiZnJhbWVzPTAgd2VpZ2h0cD0wIGtleWludD0yNTAga2V5aW50X21pbj0xIHNjZW5lY3V0PTQwIGludHJhX3JlZnJlc2g9MCByY19sb29rYWhlYWQ9NDAgcmM9Y3JmIG1idHJlZT0xIGNyZj0yMy4wIHFjb21wPTAuNjAgcXBtaW49MCBxcG1heD02OSBxcHN0ZXA9NCBpcF9yYXRpbz0xLjQwIGFxPTE6MS4wMACAAAAADmWIhAW///8PRQABT3+AARggBwEYIAcBGCAHARggBwEYIAcBGCAHARggBwEYIAcAAAAGQZo4CvqAARggBwEYIAcBGCAHARggBwEYIAcBGCAHARggBwEYIAc=';
-  let harnesses = [], skills = [], active = null, toastTimer = null, view = null, viewKey = null;
+  let harnesses = [], skills = [], snippets = [], active = null, toastTimer = null, view = null, viewKey = null;
   const $ = id => document.getElementById(id);
   const el = (tag, props = {}, ...children) => {
     const node = Object.assign(document.createElement(tag), props);
@@ -191,10 +199,11 @@
 
   async function load() {
     try {
-      const [h, s] = await Promise.all([fetch('/harnesses'), fetch('/skills')]);
+      const [h, s, n] = await Promise.all([fetch('/harnesses'), fetch('/skills'), fetch('/snippets')]);
       if (!h.ok || !s.ok) throw new Error(h.status === 401 || s.status === 401 ? 'expired' : 'failed');
       harnesses = await h.json();
       skills = await s.json();
+      snippets = n.ok ? await n.json() : [];
     } catch (e) {
       $('tabs').replaceChildren();
       $('list').replaceChildren(el('p', { className: 'empty', textContent: e.message === 'expired'
@@ -202,16 +211,25 @@
         : 'Could not reach the computer. Check that sharing is still on.' }));
       return;
     }
-    if (!harnesses.some(x => x.id === active)) active = harnesses[0] ? harnesses[0].id : null;
+    const tabIds = tabs().map(t => t.id);
+    if (!tabIds.includes(active)) active = tabIds[0] || null;
     render();
   }
 
-  function render() {
-    $('tabs').replaceChildren(...harnesses.map(h => el('button', {
-      role: 'tab', ariaSelected: String(h.id === active),
-      onclick: () => { active = h.id; buzz(5); render(); window.scrollTo(0, 0); },
-    }, h.name, el('span', { className: 'n', textContent: h.skill_count }))));
+  const SNIPPETS_TAB = '__snippets';
+  // Harness tabs, plus a Snippets tab when this phone has snippets.
+  const tabs = () => harnesses.map(h => ({ id: h.id, name: h.name, count: h.skill_count }))
+    .concat(snippets.length ? [{ id: SNIPPETS_TAB, name: 'Snippets', count: snippets.length }] : []);
 
+  function render() {
+    $('tabs').replaceChildren(...tabs().map(t => el('button', {
+      role: 'tab', ariaSelected: String(t.id === active),
+      onclick: () => { active = t.id; buzz(5); render(); window.scrollTo(0, 0); },
+    }, t.name, el('span', { className: 'n', textContent: t.count }))));
+
+    $('q').placeholder = active === SNIPPETS_TAB ? 'Search snippets' : 'Search skills';
+    $('q').setAttribute('aria-label', $('q').placeholder);
+    if (active === SNIPPETS_TAB) { renderSnippets(); return; }
     if (!harnesses.length) {
       $('list').replaceChildren(el('p', { className: 'empty', textContent: view && view.length === 0
         ? 'Nothing is assigned to this phone yet. Choose what it shows in the Pad on the computer.'
@@ -225,22 +243,65 @@
       $('list').replaceChildren(el('p', { className: 'empty', textContent: 'No skills match “' + $('q').value + '”.' }));
       return;
     }
-    $('list').replaceChildren(...shown.map(s => el('button', {
-      className: 'row', role: 'listitem', onclick: () => paste(s),
-      ariaLabel: s.name + (s.description ? ', ' + s.description : ''),
-    }, el('code', { textContent: s.invocation.trim() }),
-       el('small', { textContent: s.description || s.name }))));
+    $('list').replaceChildren(...shown.map(s => {
+      const row = el('button', {
+        className: 'row', onclick: () => paste(s),
+        ariaLabel: s.name + (s.description ? ', ' + s.description : ''),
+      }, el('code', { textContent: s.invocation.trim() }),
+         el('small', { textContent: s.description || s.name }));
+      if (!s.presets || !s.presets.length) {
+        row.setAttribute('role', 'listitem');
+        return row;
+      }
+      // Presets: one-tap buttons for the Invocation plus a saved suffix.
+      const presets = el('div', { className: 'presets' }, ...s.presets.map(p => el('button', {
+        type: 'button', textContent: p.text, ariaLabel: s.invocation.trim() + ' ' + p.text,
+        onclick: () => paste(s, p),
+      })));
+      return el('div', { className: 'with-presets', role: 'listitem' }, row, presets);
+    }));
   }
 
-  async function paste(skill) {
+  function renderSnippets() {
+    const q = $('q').value.trim().toLowerCase();
+    const shown = snippets.filter(n => !q || n.title.toLowerCase().includes(q) || n.text.toLowerCase().includes(q));
+    if (!shown.length) {
+      $('list').replaceChildren(el('p', { className: 'empty', textContent: 'No snippets match “' + $('q').value + '”.' }));
+      return;
+    }
+    $('list').replaceChildren(...shown.map(n => el('button', {
+      className: 'row snippet', role: 'listitem', onclick: () => pasteSnippet(n),
+      ariaLabel: (n.title || 'Snippet') + ', ' + n.text,
+    }, el('b', { textContent: n.title || n.text.split('\n')[0] }),
+       el('small', { textContent: n.text }))));
+  }
+
+  async function pasteSnippet(snippet) {
+    buzz(12);
+    try {
+      const r = await fetch('/paste-snippet', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: snippet.id }),
+      });
+      if (r.ok) toast('Pasted ' + (snippet.title || 'snippet'));
+      else if (r.status === 404 || r.status === 403) { buzz([30, 40, 30]); toast('That snippet is gone', true); load(); }
+      else if (r.status === 401) { buzz([30, 40, 30]); toast('Sharing has stopped', true); }
+      else { buzz([30, 40, 30]); toast('Paste failed', true); }
+    } catch (e) {
+      buzz([30, 40, 30]);
+      toast('Could not reach the computer', true);
+    }
+  }
+
+  async function paste(skill, preset) {
     buzz(12);
     try {
       const r = await fetch('/paste', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: skill.id }),
+        body: JSON.stringify(preset ? { id: skill.id, preset: preset.id } : { id: skill.id }),
       });
-      if (r.ok) toast('Pasted ' + skill.invocation.trim());
-      else if (r.status === 404) { buzz([30, 40, 30]); toast('That skill is gone', true); load(); }
+      if (r.ok) toast('Pasted ' + skill.invocation.trim() + (preset ? ' ' + preset.text : ''));
+      else if (r.status === 404) { buzz([30, 40, 30]); toast(preset ? 'That preset is gone' : 'That skill is gone', true); load(); }
       else if (r.status === 401) { buzz([30, 40, 30]); toast('Sharing has stopped', true); }
       else { buzz([30, 40, 30]); toast('Paste failed', true); }
     } catch (e) {
@@ -390,7 +451,8 @@
 
   function blockedReason(ticket) {
     const numbers = ticket.blocked_by?.ticket_numbers?.map(number => `#${number}`).join(', ');
-    const blockers = ticket.blocked_by?.raw || numbers;
+    // Resolved ticket numbers read better than the raw line (which may cite GitHub numbers).
+    const blockers = numbers || ticket.blocked_by?.raw;
     return el('p', { id: `blocked-${ticket.number}`, className: 'blocked',
       textContent: blockers ? `Blocked by ${blockers}` : 'Blocked by a pending ticket' });
   }
