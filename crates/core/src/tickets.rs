@@ -358,3 +358,103 @@ fn blocker_numbers(
     }
     numbers
 }
+
+/// Placeholder for the Ticket's path in an implement template.
+pub const TICKET_PATH: &str = "{path}";
+
+/// Default implement template for every Harness.
+pub const DEFAULT_IMPLEMENT_TEMPLATE: &str = "Implement the ticket at {path}";
+
+/// Why an "Implement" request was refused.
+#[derive(Debug)]
+pub enum ImplementError {
+    Ticket(TicketError),
+    /// The Ticket is done.
+    NotPending,
+    /// A Ticket it is blocked by is still pending.
+    Blocked,
+}
+
+impl From<TicketError> for ImplementError {
+    fn from(error: TicketError) -> Self {
+        Self::Ticket(error)
+    }
+}
+
+impl State {
+    /// The implement template for `harness`.
+    pub(crate) fn implement_template(&self, harness: &str) -> String {
+        self.settings
+            .lock()
+            .unwrap()
+            .implement_templates
+            .get(harness)
+            .cloned()
+            .unwrap_or_else(|| DEFAULT_IMPLEMENT_TEMPLATE.into())
+    }
+
+    /// Pastes the implement text for a pending, unblocked Ticket of a Session's project, then
+    /// presses Enter so the agent starts. Returns the pasted text.
+    pub(crate) fn implement_ticket(
+        &self,
+        session_id: &str,
+        ticket_id: &str,
+    ) -> Result<String, ImplementError> {
+        let ticket = self.ticket(session_id, ticket_id)?;
+        if !ticket.summary.is_pending() {
+            return Err(ImplementError::NotPending);
+        }
+        if ticket.summary.blocked {
+            return Err(ImplementError::Blocked);
+        }
+        let harness = self
+            .list_sessions()
+            .into_iter()
+            .find(|s| s.session_id == session_id)
+            .map(|s| s.harness)
+            .ok_or(ImplementError::Ticket(TicketError::UnknownSession))?;
+        let text = self
+            .implement_template(&harness)
+            .replace(TICKET_PATH, ticket_id)
+            .trim_end()
+            .to_string();
+        self.pastes.paste(text.clone(), true);
+        Ok(text)
+    }
+}
+
+impl Core {
+    /// Pastes "implement this Ticket" into the focused app and presses Enter (ticket 20).
+    pub fn implement_ticket(
+        &self,
+        session_id: &str,
+        ticket_id: &str,
+    ) -> Result<String, ImplementError> {
+        self.state.implement_ticket(session_id, ticket_id)
+    }
+
+    /// The implement template for `harness`; `{path}` is the Ticket's project-relative path.
+    pub fn implement_template(&self, harness: &str) -> String {
+        self.state.implement_template(harness)
+    }
+
+    /// Sets (or with `None`, resets) the implement template for `harness`.
+    pub fn set_implement_template(
+        &self,
+        harness: &str,
+        template: Option<&str>,
+    ) -> Result<(), SettingsError> {
+        if template.is_some_and(|t| !t.contains(TICKET_PATH)) {
+            return Err(SettingsError::TemplateWithoutPath);
+        }
+        self.state.change_settings(|s| {
+            match template {
+                Some(t) => s
+                    .implement_templates
+                    .insert(harness.to_string(), t.to_string()),
+                None => s.implement_templates.remove(harness),
+            };
+            Ok(())
+        })
+    }
+}

@@ -9,7 +9,7 @@ use percent_encoding::percent_decode_str;
 use serde_json::json;
 use tiny_http::{Header, Method, Request, Response, Server};
 
-use crate::{hooks, State, TicketError};
+use crate::{hooks, ImplementError, State, TicketError};
 
 pub(crate) struct Running {
     pub addr: SocketAddr,
@@ -56,6 +56,7 @@ fn handle(state: &State, mut request: Request) {
         (Method::Get, "/sessions") => sessions_response(state),
         (Method::Get, path) if path.starts_with("/sessions/") => tickets_response(state, path)
             .with_header(Header::from_bytes("Cache-Control", "no-store").expect("valid header")),
+        (Method::Post, path) if path.starts_with("/sessions/") => implement_response(state, path),
         (Method::Post, "/hooks/claude") => hooks::receive(state, &mut request),
         _ => Response::from_string("not found").with_status_code(404),
     };
@@ -101,6 +102,36 @@ pub(crate) fn tickets_response(state: &State, path: &str) -> Response<io::Cursor
         Err(TicketError::UnknownSession) => json_status(404, &json!({"error": "unknown session"})),
         Err(TicketError::UnknownTicket) => json_status(404, &json!({"error": "unknown ticket"})),
         Err(TicketError::InvalidPattern | TicketError::Io(_)) => {
+            json_status(500, &json!({"error": "could not read tickets"}))
+        }
+    }
+}
+
+/// `POST /sessions/<session id>/tickets/<ticket id>/implement` (ticket 20).
+pub(crate) fn implement_response(state: &State, path: &str) -> Response<io::Cursor<Vec<u8>>> {
+    let parts: Vec<&str> = path.trim_start_matches('/').split('/').collect();
+    let ["sessions", session, "tickets", ticket, "implement"] = parts[..] else {
+        return Response::from_string("not found").with_status_code(404);
+    };
+    let (Some(session), Some(ticket)) = (decode_segment(session), decode_segment(ticket)) else {
+        return Response::from_string("not found").with_status_code(404);
+    };
+    match state.implement_ticket(&session, &ticket) {
+        Ok(text) => json(&json!({ "pasted": text })),
+        Err(ImplementError::Blocked) => json_status(
+            409,
+            &json!({"error": "blocked by a ticket that is still pending"}),
+        ),
+        Err(ImplementError::NotPending) => {
+            json_status(409, &json!({"error": "this ticket is already done"}))
+        }
+        Err(ImplementError::Ticket(TicketError::UnknownSession)) => {
+            json_status(404, &json!({"error": "unknown session"}))
+        }
+        Err(ImplementError::Ticket(TicketError::UnknownTicket)) => {
+            json_status(404, &json!({"error": "unknown ticket"}))
+        }
+        Err(ImplementError::Ticket(_)) => {
             json_status(500, &json!({"error": "could not read tickets"}))
         }
     }

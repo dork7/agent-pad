@@ -36,6 +36,8 @@ pub struct Settings {
     pub active_profile: Option<String>,
     /// Project-relative ticket pattern. None uses the Core default.
     pub ticket_pattern: Option<String>,
+    /// "Implement" templates per Harness ID; `{path}` is the Ticket's path.
+    pub implement_templates: std::collections::BTreeMap<String, String>,
 }
 
 /// The Skills Pad config folder for `home` on this OS.
@@ -96,6 +98,8 @@ pub enum SettingsError {
     TemplateWithoutName,
     /// Skill Directories are still assigned to this Harness.
     HarnessInUse,
+    /// An implement template must contain `{path}`.
+    TemplateWithoutPath,
     InvalidTicketPattern,
     /// Saving the settings file failed.
     Io(String),
@@ -111,6 +115,7 @@ impl std::fmt::Display for SettingsError {
             Self::EmptyName => "Give the harness a name.",
             Self::TemplateWithoutName => "The template must contain {name}.",
             Self::HarnessInUse => "Move or remove its skill directories first.",
+            Self::TemplateWithoutPath => "The template must contain {path}.",
             Self::InvalidTicketPattern => {
                 "Choose a project-relative ticket pattern without parent components."
             }

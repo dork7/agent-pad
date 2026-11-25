@@ -251,6 +251,10 @@ fn handle(state: &State, mut request: Request, token: &str) -> bool {
                 // TODO: Enforce this Phone's View for ticket routes when sessions are filtered.
                 server::tickets_response(state, path).boxed()
             }
+            (Method::Post, path) if path.starts_with("/sessions/") => {
+                // TODO(ticket 14): refuse sessions outside this Phone's View.
+                server::implement_response(state, path).boxed()
+            }
             (Method::Post, "/paste") => paste(state, device, &mut request).boxed(),
             (Method::Post, "/heartbeat") => Response::empty(204).boxed(),
             _ => Response::from_string("not found")
