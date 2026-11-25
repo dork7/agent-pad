@@ -4,12 +4,16 @@
 
 **Blocked by:** #2
 
-**Status:** ready-for-agent
+**Status:** done
 
 **GitHub:** #4
 
-- [ ] Nothing listens on the network until sharing is started
-- [ ] Each start produces a new token; a token from a previous start is rejected
-- [ ] The primary LAN address is picked automatically and can be overridden in the Pad
-- [ ] Heartbeats from an open phone page keep sharing alive; 15 minutes of silence stops it
-- [ ] "Stop sharing" stops the server immediately
+- [x] Nothing listens on the network until sharing is started
+- [x] Each start produces a new token; a token from a previous start is rejected
+- [x] The primary LAN address is picked automatically and can be overridden in the Pad
+- [x] Heartbeats from an open phone page keep sharing alive; 15 minutes of silence stops it
+- [x] "Stop sharing" stops the server immediately
+
+Ticket 03 delivers the Core commands and Phone endpoints. The "Open on phone"
+button and other Pad controls land with ticket 05. The phone page lands with
+ticket 04.

@@ -49,11 +49,15 @@ impl Drop for Running {
 fn handle(state: &State, request: Request) {
     let path = request.url().split('?').next().unwrap_or("").to_string();
     let response = match (request.method(), path.as_str()) {
-        (Method::Get, "/skills") => json(&skills::scan(&state.home)),
+        (Method::Get, "/skills") => skills_response(state),
         (Method::Get, "/harnesses") => json(&skills::harnesses(&skills::scan(&state.home))),
         _ => Response::from_string("not found").with_status_code(404),
     };
     let _ = request.respond(response);
+}
+
+pub(crate) fn skills_response(state: &State) -> Response<io::Cursor<Vec<u8>>> {
+    json(&skills::scan(&state.home))
 }
 
 fn json<T: serde::Serialize>(value: &T) -> Response<io::Cursor<Vec<u8>>> {
