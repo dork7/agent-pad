@@ -24,6 +24,8 @@ pub fn parse_hotkey(input: &str) -> Result<Shortcut, String> {
 #[serde(default)]
 pub struct Config {
     pub hotkey: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stuck_threshold_seconds: Option<u32>,
     #[serde(flatten)]
     extra: Map<String, Value>,
 }
@@ -32,6 +34,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             hotkey: default_hotkey(std::env::consts::OS).into(),
+            stuck_threshold_seconds: None,
             extra: Map::new(),
         }
     }
@@ -97,10 +100,13 @@ mod tests {
         let path = directory.path().join("settings/config.json");
         let mut config = Config {
             hotkey: "Alt+Shift+K".into(),
+            stuck_threshold_seconds: Some(90),
             ..Config::default()
         };
         save_config(&path, &config).unwrap();
-        assert_eq!(load_config(&path).unwrap().hotkey, "Alt+Shift+K");
+        let loaded = load_config(&path).unwrap();
+        assert_eq!(loaded.hotkey, "Alt+Shift+K");
+        assert_eq!(loaded.stuck_threshold_seconds, Some(90));
 
         fs::write(&path, r#"{"future_setting":{"enabled":true}}"#).unwrap();
         config = load_config(&path).unwrap();

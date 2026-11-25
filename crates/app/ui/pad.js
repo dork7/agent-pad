@@ -76,11 +76,16 @@ function renderSharing(info) {
   }
 }
 
-async function refreshSharing() {
+async function refreshSharing(revealPairing = false) {
   const request = ++sharingRequest;
   try {
     const info = await invoke("sharing_status");
-    if (request === sharingRequest) renderSharing(info);
+    if (request !== sharingRequest) return;
+    renderSharing(info);
+    if (revealPairing && info) {
+      showPadSection("phones-panel");
+      byId("pairing-title").focus();
+    }
   } catch (error) {
     if (request === sharingRequest) {
       setMessage("sharing-error", `Could not check sharing: ${error}`);
@@ -101,7 +106,7 @@ async function changeSharing(command) {
   } finally {
     sharingBusy = false;
     if (command === "start_sharing") refreshAccessibility();
-    await refreshSharing();
+    await refreshSharing(command === "start_sharing");
   }
 }
 
@@ -166,7 +171,7 @@ function button(label, className, onClick) {
 }
 
 function chipLabel(chip) {
-  return chipCatalog.get(chip) ?? chip.slice(2);
+  return chip === "snippets" ? "Snippets" : chipCatalog.get(chip) ?? chip.slice(2);
 }
 
 function chipElement(tag, chip) {
@@ -464,7 +469,7 @@ setInterval(() => {
 loadHotkey();
 listen("sharing-changed", ({ payload }) => {
   setMessage("sharing-error", payload);
-  refreshSharing();
+  refreshSharing(true);
 }).catch((error) => setMessage("sharing-error", `Could not listen for tray updates: ${error}`));
 refreshSharing();
 setInterval(() => {

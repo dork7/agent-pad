@@ -190,13 +190,14 @@ fn main() -> tauri::Result<()> {
                 clock: Arc::new(SystemClock),
             })?;
             core.set_pad_window(Arc::new(TauriPad(app.handle().clone())));
-            app.manage(core);
 
             let path = app.path().app_config_dir()?.join("config.json");
             app.manage(hotkey::HotkeySettings::register_at_startup(
                 app.handle(),
                 path,
+                &core,
             ));
+            app.manage(core);
             build_tray(app.handle())?;
             Ok(())
         })
@@ -239,6 +240,36 @@ fn main() -> tauri::Result<()> {
             commands::rename_phone,
             commands::disconnect_phone,
             commands::forget_phone,
+            commands::preview_claude_hooks,
+            commands::apply_claude_hooks,
+            commands::remove_claude_hooks,
+            commands::preview_codex_hooks,
+            commands::apply_codex_hooks,
+            commands::remove_codex_hooks,
+            commands::list_sessions,
+            commands::pending_tickets,
+            commands::ticket,
+            commands::ticket_pattern,
+            commands::set_ticket_pattern,
+            commands::implement_template,
+            commands::set_implement_template,
+            commands::implement_ticket,
+            commands::list_profiles,
+            commands::save_profile,
+            commands::switch_profile,
+            commands::rename_profile,
+            commands::delete_profile,
+            commands::list_presets,
+            commands::add_preset,
+            commands::update_preset,
+            commands::delete_preset,
+            commands::list_snippets,
+            commands::add_snippet,
+            commands::update_snippet,
+            commands::move_snippet,
+            commands::delete_snippet,
+            hotkey::stuck_threshold,
+            hotkey::set_stuck_threshold,
             hotkey::get_hotkey,
             hotkey::set_hotkey,
         ])
