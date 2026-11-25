@@ -85,6 +85,7 @@ Skills Pad is a Rust desktop app for macOS and Windows. A global hotkey or statu
 75. As a developer, I want the ticket folder pattern to be configurable, so that projects with a different layout still work.
 76. As a developer, I want each Ticket to show its status as a tag, such as triage or ready-for-agent, so that I can see at a glance which ones are ready to build.
 77. As a developer, I want an "Implement" button on a pending Ticket, so that one tap tells the agent to start building it.
+78. As a developer, I want each Session card to show how much of its agent's usage limits is left and when they reset, so that I don't hand work to an agent that is about to run out.
 
 ## Implementation Decisions
 
@@ -102,6 +103,7 @@ Skills Pad is a Rust desktop app for macOS and Windows. A global hotkey or statu
 - **Session status (slice 5):** the app installs a small hook command that forwards Claude Code and Codex lifecycle events (session start, prompt submitted, before and after tool use, permission requested or notification, stop, interrupt, session end) to a local-only listener. Status is derived: working after a prompt or tool event until stop; needs input on a permission event; idle after stop; ended on session end; stuck when working with no events for the threshold (default 5 minutes). There is no true percentage progress; the "bar" is a state indicator with elapsed time and tool-call count. Installing hooks edits the user's Claude and Codex config, so it requires explicit consent, shows the change first, and supports one-click removal. Cursor, Gemini CLI, OpenCode and Copilot are not covered until their hook support is verified.
 - **Pending tickets:** a Session card offers "Pending tickets" for its project folder. Tickets are Markdown files matched by a configurable pattern (default `.scratch/*/issues/*.md`). They are read on every request and never cached. A Ticket is pending unless its `**Status:**` is done, closed or wontfix. The phone sends a Session ID only, and the Core resolves the folder, so arbitrary paths are never read.
 - **Implement command:** a pending Ticket has an "Implement" button that pastes a per-Harness implement template (default `Implement the ticket at <path> `) and presses Enter, through the normal paste flow. The phone sends only a Session ID and a Ticket ID.
+- **Usage limits (triage):** Session cards show the remaining usage limits each harness reports locally (Claude Code 5-hour, weekly and context; Codex primary and weekly), with reset times. Data sources must be verified before building, and missing figures are never guessed.
 - **Build order:** (1) scan and list skills; (2) phone page and paste on macOS; (3) Windows paste; (4) multi-phone Views and Profiles; (5) Session status.
 
 ## Testing Decisions
