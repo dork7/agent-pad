@@ -30,6 +30,8 @@ pub struct Settings {
     pub templates: std::collections::BTreeMap<String, String>,
     /// The network address to share on instead of the automatically chosen one.
     pub network_override: Option<std::net::IpAddr>,
+    /// Seconds a working Session may go without events before it counts as stuck.
+    pub stuck_threshold_seconds: Option<u64>,
     /// Saved arrangements of every Phone's View.
     pub profiles: Vec<crate::profiles::Profile>,
     /// The Profile last saved or switched to.

@@ -130,7 +130,9 @@ impl Core {
     pub fn start(config: CoreConfig) -> io::Result<Core> {
         let pad: Arc<RwLock<Arc<dyn PadWindow>>> =
             Arc::new(RwLock::new(Arc::new(paste::NoPadWindow)));
-        let settings = Mutex::new(settings::load(&config.home));
+        let loaded = settings::load(&config.home);
+        let stuck_threshold = loaded.stuck_threshold_seconds;
+        let settings = Mutex::new(loaded);
         let state = Arc::new(State {
             settings,
             phones: Default::default(),
@@ -138,7 +140,7 @@ impl Core {
             clock: config.clock,
             pastes: paste::PasteQueue::start(config.paster, pad.clone()),
             pad,
-            sessions: Default::default(),
+            sessions: Mutex::new(sessions::Sessions::with_threshold(stuck_threshold)),
         });
         let server = server::start(state.clone())?;
         let port = server.addr.port();

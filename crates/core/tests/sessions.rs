@@ -433,3 +433,19 @@ fn the_installed_command_forwards_to_the_current_port_and_succeeds_offline() {
     run(command, "removed");
     assert_eq!(sessions(&core).len(), 1);
 }
+
+#[test]
+fn the_stuck_threshold_is_saved_across_restarts() {
+    let home = tempfile::TempDir::new().unwrap();
+    let start = || {
+        skills_pad_core::Core::start(skills_pad_core::CoreConfig {
+            home: home.path().to_path_buf(),
+            paster: std::sync::Arc::new(skills_pad_core::testing::RecordingPaster::new()),
+            clock: std::sync::Arc::new(skills_pad_core::testing::FakeClock::new()),
+        })
+        .unwrap()
+    };
+    assert_eq!(start().stuck_threshold(), Duration::from_secs(300));
+    start().set_stuck_threshold(Duration::from_secs(900));
+    assert_eq!(start().stuck_threshold(), Duration::from_secs(900));
+}

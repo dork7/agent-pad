@@ -56,6 +56,7 @@ struct TrackedSession {
 }
 
 pub(crate) struct Sessions {
+    // Set from settings at start (see `Sessions::with_threshold`).
     by_id: BTreeMap<(&'static str, String), TrackedSession>,
     stuck_threshold: Duration,
 }
@@ -70,6 +71,14 @@ impl Default for Sessions {
 }
 
 impl Sessions {
+    pub(crate) fn with_threshold(seconds: Option<u64>) -> Self {
+        let mut sessions = Self::default();
+        if let Some(seconds) = seconds {
+            sessions.stuck_threshold = Duration::from_secs(seconds);
+        }
+        sessions
+    }
+
     pub(crate) fn record(
         &mut self,
         harness: &'static str,
@@ -165,8 +174,20 @@ impl Core {
         self.state.list_sessions()
     }
 
-    /// Change the working-to-stuck timeout for this Core.
+    /// Change the working-to-stuck timeout. It is saved in settings.
     pub fn set_stuck_threshold(&self, threshold: Duration) {
         self.state.sessions.lock().unwrap().stuck_threshold = threshold;
+        let saved = self.state.change_settings(|s| {
+            s.stuck_threshold_seconds = Some(threshold.as_secs());
+            Ok(())
+        });
+        if let Err(error) = saved {
+            eprintln!("skills-pad: {error}");
+        }
+    }
+
+    /// The working-to-stuck timeout.
+    pub fn stuck_threshold(&self) -> Duration {
+        self.state.sessions.lock().unwrap().stuck_threshold
     }
 }
