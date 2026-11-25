@@ -4,7 +4,7 @@
 
 **Blocked by:** #5, #6
 
-**Status:** in-progress (Core done; Pad consent UI and session cards pending)
+**Status:** in-progress (Core and phone UI done; Pad consent UI and session cards pending)
 
 **GitHub:** #14
 
@@ -17,6 +17,7 @@
 - [ ] Sessions started before installation are not shown until they restart, and the Pad says so
   - [x] Core waits for a start or resume event and exposes the restart notice.
 - [x] The hook listener accepts connections from the local machine only
+- [x] The phone polls for sessions while visible and shows project, harness, status, elapsed time, and tool count. Session details show the full project path.
 
 ## Notes
 
