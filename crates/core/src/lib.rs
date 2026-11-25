@@ -6,6 +6,7 @@
 pub mod clock;
 pub mod paste;
 mod server;
+mod sharing;
 pub mod skills;
 pub mod testing;
 
@@ -16,6 +17,7 @@ use std::sync::Arc;
 
 pub use clock::{Clock, SystemClock};
 pub use paste::Paster;
+pub use sharing::SharingInfo;
 pub use skills::Skill;
 
 /// Everything the Core needs from the outside world. Tests swap in a temp home,
@@ -28,17 +30,17 @@ pub struct CoreConfig {
 }
 
 /// A running Core with its local HTTP API on 127.0.0.1 and a random port.
-/// Dropping it stops the server.
+/// Dropping it stops both the local API and any active sharing.
 pub struct Core {
     state: Arc<State>,
     server: server::Running,
+    sharing: std::sync::Mutex<sharing::Sharing>,
 }
 
 pub(crate) struct State {
     pub home: PathBuf,
     #[allow(dead_code)] // used from ticket 04 (paste) on
     pub paster: Arc<dyn Paster>,
-    #[allow(dead_code)] // used from ticket 03 (idle stop) on
     pub clock: Arc<dyn Clock>,
 }
 
@@ -50,7 +52,11 @@ impl Core {
             clock: config.clock,
         });
         let server = server::start(state.clone())?;
-        Ok(Core { state, server })
+        Ok(Core {
+            state,
+            server,
+            sharing: Default::default(),
+        })
     }
 
     /// Address of the local HTTP API.
