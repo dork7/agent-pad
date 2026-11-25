@@ -3,6 +3,8 @@ const { listen } = window.__TAURI__.event;
 const byId = (id) => document.getElementById(id);
 const openButton = byId("open-on-phone");
 const stopButton = byId("stop-sharing");
+const accessibilityCard = byId("accessibility");
+const grantButton = byId("grant-access");
 const pairing = byId("pairing");
 const qr = byId("qr");
 const sharingUrl = byId("sharing-url");
@@ -11,12 +13,47 @@ const saveHotkey = byId("save-hotkey");
 
 let sharingRequest = 0;
 let sharingBusy = false;
+let accessibilityGranted = null;
+let checkingAccessibility = false;
 
 function setMessage(id, message) {
   const element = byId(id);
   element.textContent = message ?? "";
   element.hidden = !message;
 }
+
+function updateOpenButton() {
+  openButton.disabled = sharingBusy || accessibilityGranted !== true;
+}
+
+async function refreshAccessibility() {
+  if (checkingAccessibility) return;
+  checkingAccessibility = true;
+  try {
+    accessibilityGranted = await invoke("accessibility_granted");
+    accessibilityCard.hidden = accessibilityGranted;
+    setMessage("accessibility-status-error", null);
+  } catch (error) {
+    accessibilityGranted = null;
+    setMessage("accessibility-status-error", `Could not check Accessibility access: ${error}`);
+  } finally {
+    checkingAccessibility = false;
+    updateOpenButton();
+  }
+}
+
+grantButton.addEventListener("click", async () => {
+  grantButton.disabled = true;
+  setMessage("grant-access-error", null);
+  try {
+    await invoke("open_accessibility_settings");
+  } catch (error) {
+    setMessage("grant-access-error", `Could not open Accessibility settings: ${error}`);
+  } finally {
+    grantButton.disabled = false;
+    await refreshAccessibility();
+  }
+});
 
 async function refreshHarnesses() {
   const list = byId("harnesses");
@@ -46,7 +83,7 @@ function renderSharing(info) {
   if (status.textContent !== label) status.textContent = label;
   byId("sharing-dot").classList.toggle("active", active);
   openButton.hidden = active;
-  openButton.disabled = sharingBusy;
+  updateOpenButton();
   stopButton.hidden = !active;
   stopButton.disabled = sharingBusy;
   pairing.hidden = !active;
@@ -84,6 +121,7 @@ async function changeSharing(command) {
     setMessage("sharing-error", error);
   } finally {
     sharingBusy = false;
+    if (command === "start_sharing") refreshAccessibility();
     await refreshSharing();
   }
 }
@@ -215,10 +253,49 @@ sendEnter.addEventListener("change", async () => {
   }
 });
 
+const startAtLogin = byId("start-at-login");
+let checkingStartAtLogin = false;
+
+async function syncStartAtLogin(enabled) {
+  if (checkingStartAtLogin) return;
+  checkingStartAtLogin = true;
+  startAtLogin.disabled = true;
+  let message = null;
+  if (enabled !== undefined) {
+    try {
+      await invoke(enabled ? "plugin:autostart|enable" : "plugin:autostart|disable");
+    } catch (error) {
+      message = `Could not change Start at login: ${error}`;
+    }
+  }
+  try {
+    startAtLogin.checked = await invoke("plugin:autostart|is_enabled");
+    startAtLogin.disabled = false;
+  } catch (error) {
+    message ??= `Could not check Start at login: ${error}`;
+  } finally {
+    checkingStartAtLogin = false;
+    setMessage("start-at-login-error", message);
+  }
+}
+
+startAtLogin.addEventListener("change", () => syncStartAtLogin(startAtLogin.checked));
+window.addEventListener("focus", () => {
+  refreshAccessibility();
+  syncStartAtLogin();
+});
+refreshAccessibility();
+syncStartAtLogin();
+
 window.addEventListener("focus", refreshHarnesses);
 refreshHarnesses();
 refreshPhones();
-setInterval(() => { if (!document.hidden) refreshPhones(); }, 2000);
+setInterval(() => {
+  if (!document.hidden) {
+    refreshPhones();
+    refreshAccessibility();
+  }
+}, 2000);
 loadHotkey();
 listen("sharing-changed", ({ payload }) => {
   setMessage("sharing-error", payload);

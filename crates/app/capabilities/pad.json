@@ -1,6 +1,10 @@
 {
   "identifier": "pad",
-  "description": "Receive sharing changes from the tray in the Pad window",
+  "description": "Receive tray updates and manage start at login in the Pad window",
   "windows": ["pad"],
-  "permissions": ["core:event:allow-listen", "core:event:allow-unlisten"]
+  "permissions": [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "autostart:default"
+  ]
 }
