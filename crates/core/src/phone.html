@@ -9,22 +9,27 @@
   :root {
     --bg: #f6f6f4; --surface: #ffffff; --surface-2: #ececea; --text: #1b1b1a; --muted: #6b6b66;
     --line: #dcdcd7; --accent: #3b5bdb; --accent-text: #ffffff; --error: #c92a2a;
+    --working: #2f9e44; --needs: #e8590c; --idle: #868e96; --stuck: #c92a2a; --ended: #adb5bd;
+    --triage-tag: #785000; --ready-tag: #176334; --progress-tag: #3251b5; --blocked-tag: #a82929;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   }
   @media (prefers-color-scheme: dark) {
     :root {
       --bg: #121212; --surface: #1d1d1c; --surface-2: #2a2a28; --text: #ececea; --muted: #9a9a94;
       --line: #33332f; --accent: #748ffc; --accent-text: #0d0d0d; --error: #ff6b6b;
+      --triage-tag: #ffd582; --ready-tag: #8ce9a8; --progress-tag: #a5b8ff; --blocked-tag: #ff9a9a;
     }
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--bg); color: var(--text); -webkit-tap-highlight-color: transparent;
     overflow-x: hidden; -webkit-text-size-adjust: 100%; }
   button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+  button:disabled { cursor: default; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
   /* One-handed layout: the list scrolls above; tabs and search sit at the bottom, in thumb reach. */
   main { max-width: 640px; margin: 0 auto; padding: max(16px, env(safe-area-inset-top)) 16px 0;
-    padding-bottom: calc(150px + env(safe-area-inset-bottom)); }
+    padding-bottom: calc(var(--dock-height, 240px) + 16px); }
   h1 { font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 4px; }
   .row { display: block; width: 100%; min-height: 56px; text-align: left; padding: 12px 4px;
     border-bottom: 1px solid var(--line); }
@@ -49,9 +54,69 @@
     background: var(--bg); outline: none; font: inherit; font-size: 18px; color: inherit; }
   .search:focus { border-color: var(--accent); }
 
+  .dock { border-radius: 22px 22px 0 0; }
+  .agent-sheet { border-bottom: 1px solid var(--line); margin-bottom: 10px; }
+  .sheet-toggle { display: flex; width: 100%; min-height: 44px; flex-direction: column; align-items: center;
+    justify-content: center; gap: 5px; color: var(--muted); font-size: 14px; font-weight: 600; touch-action: none; }
+  .grip { width: 40px; height: 5px; border-radius: 3px; background: var(--line); }
+  .sheet-scrim { position: fixed; inset: 0; z-index: 19; background: #0006; }
+  .sessions { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding: 4px 4px 10px; }
+  .sessions.open { display: grid; overflow: auto; max-height: min(42vh, 22rem); }
+  .session-tag { flex: none; display: flex; align-items: center; gap: 8px; min-height: 52px; max-width: 100%;
+    padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px; text-align: left; }
+  .session-tag:active { background: var(--surface-2); }
+  .session-tag[data-status="needs_input"] { border-color: var(--needs); }
+  .session-tag[data-status="stuck"] { border-color: var(--stuck); }
+  .status-dot { width: 9px; height: 9px; flex: none; border-radius: 50%; background: var(--idle); }
+  [data-status="working"] .status-dot { background: var(--working); }
+  [data-status="needs_input"] .status-dot { background: var(--needs); }
+  [data-status="stuck"] .status-dot { background: var(--stuck); }
+  [data-status="ended"] .status-dot { background: var(--ended); }
+  .session-label { min-width: 0; }
+  .session-name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+  .session-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 3px 7px; margin-top: 3px;
+    color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .harness { background: var(--surface-2); border-radius: 6px; padding: 2px 5px; }
+  .sheet-message { margin: 0; color: var(--muted); padding: 3px 4px; font-size: 14px; line-height: 1.4; }
+
+  #detail { overflow-wrap: anywhere; }
+  #detail-title { font-size: 25px; line-height: 1.18; margin: 8px 0 16px; }
+  .detail-label { color: var(--muted); font-size: 13px; font-weight: 600; margin: 4px 0; }
+  .project-path { color: var(--muted); font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .detail-actions { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+  .action { min-height: 44px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 12px;
+    font-size: 15px; font-weight: 600; background: var(--surface); }
+  .primary { background: var(--accent); color: var(--accent-text); border-color: transparent; }
+  .action:disabled, .action[aria-disabled="true"] { background: var(--surface-2); color: var(--muted); border-color: transparent; }
+  .ticket { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 4px 8px;
+    border-bottom: 1px solid var(--line); padding: 12px 0; }
+  .ticket-link { min-width: 0; min-height: 44px; text-align: left; }
+  .ticket-number { color: var(--muted); font-size: 13px; font-weight: 600; }
+  .ticket-title { display: block; margin-top: 2px; font-weight: 600; }
+  .ticket-meta { display: flex; align-items: center; gap: 8px; min-width: 0; margin: 3px 0; font-size: 13px; }
+  .ticket-status { color: var(--muted); background: var(--surface-2); border-radius: 6px; padding: 3px 7px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ticket-status[data-status="triage"] { color: var(--triage-tag); }
+  .ticket-status[data-status="ready-for-agent"] { color: var(--ready-tag); }
+  .ticket-status[data-status="in-progress"] { color: var(--progress-tag); }
+  .ticket-status[data-status="blocked"] { color: var(--blocked-tag); }
+  .ticket-progress { flex: none; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .blocked { grid-column: 1 / -1; color: var(--blocked-tag); font-size: 13px; margin: 3px 0; }
+  .markdown { margin-top: 20px; border-top: 1px solid var(--line); line-height: 1.5; }
+  .markdown code { background: var(--surface-2); border-radius: 4px; }
+  .markdown pre { white-space: pre-wrap; }
+  .markdown ul, .markdown ol { padding-inline-start: 24px; }
+  .markdown input { margin: 0 6px 0 0; vertical-align: middle; }
+  .notice { width: min(400px, calc(100% - 32px)); padding: 20px; border: 1px solid var(--line);
+    border-radius: 18px; background: var(--surface); color: var(--text); }
+  .notice::backdrop { background: #0007; }
+  .notice h2 { font-size: 20px; margin: 0; }
+  .notice p { line-height: 1.5; margin: 12px 0 20px; }
+
   #toast { position: fixed; left: 50%; top: max(16px, env(safe-area-inset-top)); transform: translate(-50%, -200%);
     transition: transform .2s; z-index: 50; max-width: calc(100% - 32px); overflow: hidden; text-overflow: ellipsis;
-    background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 999px; font-size: 14px; white-space: nowrap; }
+    background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 16px; font-size: 14px;
+    width: max-content; overflow-wrap: anywhere; }
   #toast.show { transform: translate(-50%, 0); }
   #toast.error { background: var(--error); color: #fff; }
   #keepawake { position: fixed; width: 1px; height: 1px; opacity: 0; pointer-events: none; left: -10px; top: -10px; }
@@ -59,13 +124,45 @@
 </head>
 <body>
 <main>
-  <h1>Skills Pad</h1>
-  <div id="list" role="list"></div>
+  <div id="palette">
+    <h1>Skills Pad</h1>
+    <div id="list" role="list"></div>
+  </div>
+  <section id="detail" hidden aria-labelledby="detail-title">
+    <p id="detail-label" class="detail-label"></p>
+    <h2 id="detail-title" tabindex="-1"></h2>
+    <div id="detail-body"></div>
+  </section>
 </main>
+<div id="sheet-scrim" class="sheet-scrim" hidden aria-hidden="true"></div>
 <div class="dock">
-  <nav id="tabs" class="tabs" role="tablist" aria-label="Harnesses"></nav>
-  <input id="q" class="search" type="search" placeholder="Search skills" autocomplete="off" enterkeyhint="search" aria-label="Search skills">
+  <div id="palette-dock">
+    <section class="agent-sheet" aria-label="Agent sessions">
+      <button id="sheet-toggle" class="sheet-toggle" type="button" aria-expanded="false" aria-controls="sessions">
+        <span class="grip" aria-hidden="true"></span><span>Agent sessions</span>
+      </button>
+      <div id="sessions" class="sessions"></div>
+    </section>
+    <nav id="tabs" class="tabs" role="tablist" aria-label="Harnesses"></nav>
+    <input id="q" class="search" type="search" placeholder="Search skills" autocomplete="off" enterkeyhint="search" aria-label="Search skills">
+  </div>
+  <div id="detail-dock" hidden>
+    <nav class="detail-actions" aria-label="Detail actions">
+      <button id="back" class="action" type="button">‹ Back</button>
+      <div id="detail-action"></div>
+    </nav>
+  </div>
 </div>
+<dialog id="implement-note" class="notice" aria-labelledby="implement-title" aria-describedby="implement-description">
+  <form method="dialog">
+    <h2 id="implement-title">Focus the session’s terminal</h2>
+    <p id="implement-description">The text is pasted into whichever app has focus on the computer — focus that session's terminal first.</p>
+    <div class="detail-actions">
+      <button class="action" value="cancel" autofocus>Cancel</button>
+      <button class="action primary" value="implement">Implement</button>
+    </div>
+  </form>
+</dialog>
 <div id="toast" role="status" aria-live="polite"></div>
 <script>
 (() => {
@@ -89,7 +186,7 @@
     t.classList.toggle('error', !!isError);
     t.classList.add('show');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => t.classList.remove('show'), 1400);
+    toastTimer = setTimeout(() => t.classList.remove('show'), isError ? 4500 : 1400);
   }
 
   async function load() {
@@ -152,6 +249,351 @@
     }
   }
 
+  const SESSION_POLL_MS = 3000;
+  const sessionLabels = { working: 'Working', needs_input: 'Needs input', idle: 'Idle', ended: 'Ended', stuck: 'Stuck' };
+  const sessionCards = new Map();
+  const palette = { page: 'palette' };
+  let route = palette, sessions = null, pollingSessions = false, sessionError = '';
+  let implementConfirmed = false, sendingTicket = false;
+
+  function projectName(path) {
+    return path.split(/[\\/]/).filter(Boolean).pop() || path;
+  }
+
+  function elapsed(seconds) {
+    if (seconds < 60) return `${seconds}s`;
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+    return `${Math.floor(seconds / 3600)}h ${Math.floor(seconds / 60) % 60}m`;
+  }
+
+  function sessionMeta(session) {
+    const harness = session.harness === 'claude' ? 'Claude Code' : session.harness === 'codex' ? 'Codex' : session.harness;
+    const meta = el('span', { className: 'session-meta' },
+      el('span', { className: 'harness', textContent: harness }),
+      el('span', { textContent: sessionLabels[session.status] || session.status }),
+      el('span', { textContent: elapsed(session.elapsed_seconds) }),
+      el('span', { textContent: `${session.tool_count} ${session.tool_count === 1 ? 'tool' : 'tools'}` }));
+    meta.dataset.status = session.status;
+    return meta;
+  }
+
+  async function responseError(response, message) {
+    const body = await response.json().catch(() => null);
+    if (typeof body?.error === 'string' && body.error) return body.error;
+    if (response.status === 401) return 'Sharing has stopped. Scan the QR code in the Pad again.';
+    if (response.status === 403) return 'This session is outside this phone’s View.';
+    if (response.status === 404) return 'This session or ticket is no longer available.';
+    if (response.status === 409) return 'This ticket is blocked.';
+    return message;
+  }
+
+  async function pollSessions() {
+    if (document.hidden || pollingSessions) return;
+    pollingSessions = true;
+    try {
+      const response = await fetch('/sessions', { cache: 'no-store' });
+      if (!response.ok) throw new Error(await responseError(response, 'Could not load agent sessions.'));
+      sessions = await response.json();
+      sessionError = '';
+    } catch (error) {
+      sessionError = error.message;
+    } finally {
+      pollingSessions = false;
+    }
+    renderSessions();
+    if (route.page === 'session') renderSession(route.sid);
+  }
+
+  function renderSessions() {
+    const items = $('sessions');
+    if (sessionError || !sessions?.length) {
+      if (items.contains(document.activeElement)) $('sheet-toggle').focus();
+      sessionCards.clear();
+      items.replaceChildren(el('p', { className: 'sheet-message', textContent: sessionError || (sessions
+        ? 'No agent sessions. Install hooks in the Pad to see Claude Code and Codex sessions.'
+        : 'Loading agent sessions…') }));
+      return;
+    }
+    const ids = new Set(sessions.map(session => session.session_id));
+    for (const [sid, card] of sessionCards) {
+      if (ids.has(sid)) continue;
+      if (document.activeElement === card) $('sheet-toggle').focus();
+      card.remove();
+      sessionCards.delete(sid);
+    }
+    items.querySelector('.sheet-message')?.remove();
+    let position = items.firstElementChild;
+    for (const session of sessions) {
+      const sid = session.session_id;
+      let card = sessionCards.get(sid);
+      if (!card) {
+        card = el('button', { className: 'session-tag', type: 'button', onclick: () => openPage('session', sid) },
+          dot(), el('span', { className: 'session-label' }));
+        sessionCards.set(sid, card);
+      }
+      const snapshot = JSON.stringify(session);
+      if (card.dataset.snapshot !== snapshot) {
+        card.dataset.snapshot = snapshot;
+        card.dataset.status = session.status;
+        card.lastElementChild.replaceChildren(el('strong', { className: 'session-name', textContent: projectName(session.project_folder) }),
+          sessionMeta(session));
+      }
+      if (card !== position) {
+        const focused = document.activeElement === card;
+        items.insertBefore(card, position);
+        if (focused) card.focus({ preventScroll: true });
+      }
+      position = card.nextElementSibling;
+    }
+  }
+
+  function dot() {
+    return el('span', { className: 'status-dot', ariaHidden: 'true' });
+  }
+
+  function renderSession(sid) {
+    const session = sessions?.find(item => item.session_id === sid);
+    const body = $('detail-body');
+    const actions = $('detail-action');
+    if (sessionError || !session) {
+      $('detail-title').textContent = 'Agent session';
+      if (actions.contains(document.activeElement)) $('detail-title').focus();
+      showDetailMessage(sessionError || (sessions ? 'This session is no longer available.' : 'Loading agent session…'));
+      return;
+    }
+    $('detail-title').textContent = projectName(session.project_folder);
+    const meta = sessionMeta(session);
+    meta.prepend(dot());
+    body.replaceChildren(meta, el('p', { className: 'project-path', textContent: session.project_folder }));
+    if (!actions.firstElementChild) actions.append(el('button', {
+      type: 'button', className: 'action primary', textContent: 'Pending tickets',
+      onclick: () => openPage('tickets', sid),
+    }));
+  }
+
+  function ticketsPath(sid, tid) {
+    const list = `/sessions/${encodeURIComponent(sid)}/tickets`;
+    return tid === undefined ? list : `${list}/${encodeURIComponent(tid)}`;
+  }
+
+  function ticketMeta(ticket) {
+    const meta = el('span', { className: 'ticket-meta' });
+    if (ticket.status) {
+      const status = el('span', { className: 'ticket-status', textContent: ticket.status, title: ticket.status });
+      status.dataset.status = ticket.status.trim().toLowerCase().match(/^[\w-]+/)?.[0] || '';
+      meta.append(status);
+    }
+    meta.append(el('span', { className: 'ticket-progress', textContent: `${ticket.done}/${ticket.total}`,
+      ariaLabel: `${ticket.done} of ${ticket.total} checklist items complete` }));
+    return meta;
+  }
+
+  function blockedReason(ticket) {
+    const numbers = ticket.blocked_by?.ticket_numbers?.map(number => `#${number}`).join(', ');
+    const blockers = ticket.blocked_by?.raw || numbers;
+    return el('p', { id: `blocked-${ticket.number}`, className: 'blocked',
+      textContent: blockers ? `Blocked by ${blockers}` : 'Blocked by a pending ticket' });
+  }
+
+  function implementButton(sid, ticket) {
+    const button = el('button', { type: 'button', className: 'action primary', textContent: 'Implement',
+      disabled: ticket.blocked, onclick: () => implement(sid, ticket) });
+    button.dataset.implement = '';
+    if (ticket.blocked) button.setAttribute('aria-describedby', `blocked-${ticket.number}`);
+    else if (sendingTicket) button.setAttribute('aria-disabled', 'true');
+    return button;
+  }
+
+  function renderTickets(sid, tickets, previous) {
+    const body = $('detail-body');
+    if (!tickets.length) {
+      showDetailMessage('No pending tickets in this project.');
+      return;
+    }
+    let returnFocus;
+    const list = el('div', { role: 'list' });
+    for (const ticket of tickets) {
+      const link = el('button', { type: 'button', className: 'ticket-link', onclick: () => openPage('ticket', sid, ticket.id) },
+        el('span', { className: 'ticket-number', textContent: `#${ticket.number}` }),
+        el('strong', { className: 'ticket-title', textContent: ticket.title }), ticketMeta(ticket));
+      if (ticket.id === previous.tid) returnFocus = link;
+      const row = el('div', { className: 'ticket', role: 'listitem' }, link, implementButton(sid, ticket));
+      if (ticket.blocked) row.append(blockedReason(ticket));
+      list.append(row);
+    }
+    body.replaceChildren(list);
+    if (returnFocus && document.activeElement === $('detail-title')) returnFocus.focus();
+  }
+
+  function renderTicket(sid, ticket) {
+    $('detail-title').textContent = ticket.title;
+    $('detail-label').textContent = `Ticket #${ticket.number}`;
+    const body = $('detail-body');
+    body.replaceChildren(ticketMeta(ticket));
+    if (ticket.blocked) body.append(blockedReason(ticket));
+    if (!/^(done|closed$|wontfix$)/i.test(ticket.status?.trim() || '')) {
+      $('detail-action').replaceChildren(implementButton(sid, ticket));
+    }
+    body.append(renderMarkdown(ticket.markdown));
+  }
+
+  function showDetailMessage(message) {
+    $('detail-action').replaceChildren();
+    $('detail-body').replaceChildren(el('p', { role: 'status', className: 'empty', textContent: message }));
+  }
+
+  async function loadTickets(current, previous) {
+    try {
+      const response = await fetch(ticketsPath(current.sid, current.tid), { cache: 'no-store' });
+      if (!response.ok) throw new Error(await responseError(response, 'Could not load tickets.'));
+      const data = await response.json();
+      if (route !== current) return;
+      if (current.page === 'tickets') renderTickets(current.sid, data, previous);
+      else renderTicket(current.sid, data);
+    } catch (error) {
+      if (route === current) showDetailMessage(error.message);
+    }
+  }
+
+  function setImplementBusy(busy) {
+    sendingTicket = busy;
+    for (const button of document.querySelectorAll('[data-implement]:enabled')) {
+      if (busy) button.setAttribute('aria-disabled', 'true');
+      else button.removeAttribute('aria-disabled');
+    }
+  }
+
+  async function implement(sid, ticket) {
+    if (ticket.blocked || sendingTicket) return;
+    setImplementBusy(true);
+    try {
+      if (!implementConfirmed) {
+        const note = $('implement-note');
+        note.returnValue = '';
+        note.showModal();
+        await new Promise(resolve => note.addEventListener('close', resolve, { once: true }));
+        if (note.returnValue !== 'implement') return;
+        implementConfirmed = true;
+      }
+      buzz(12);
+      const response = await fetch(`${ticketsPath(sid, ticket.id)}/implement`, { method: 'POST' });
+      if (!response.ok) throw new Error(await responseError(response, 'Could not send the ticket.'));
+      toast('Sent to agent');
+    } catch (error) {
+      buzz([30, 40, 30]);
+      toast(error.message, true);
+    } finally {
+      setImplementBusy(false);
+    }
+  }
+
+  function openPage(page, sid, tid) {
+    const next = { page, sid, tid };
+    history.pushState({ phone: next }, '');
+    showPage(next);
+  }
+
+  function showPage(next) {
+    const previous = route;
+    route = next;
+    const expanded = next.page === 'agents';
+    const detail = next.page !== 'palette' && !expanded;
+    $('palette').hidden = $('palette-dock').hidden = detail;
+    $('palette').inert = expanded;
+    $('sheet-scrim').hidden = !expanded;
+    $('detail').hidden = $('detail-dock').hidden = !detail;
+    $('sheet-toggle').ariaExpanded = String(expanded);
+    $('sessions').classList.toggle('open', expanded);
+    if (!detail) {
+      (sessionCards.get(previous.sid) || $('sheet-toggle')).focus();
+      return;
+    }
+    $('detail-label').textContent = next.page === 'session' ? 'Agent session' : 'Project tickets';
+    $('detail-title').textContent = { session: 'Agent session', tickets: 'Pending tickets', ticket: 'Ticket' }[next.page];
+    showDetailMessage('Loading…');
+    if (next.page === 'session') renderSession(next.sid);
+    else loadTickets(next, previous);
+    window.scrollTo(0, 0);
+    const pending = $('detail-action').firstElementChild;
+    if (previous.page === 'tickets' && pending) pending.focus();
+    else $('detail-title').focus();
+  }
+
+  function renderInline(parent, text) {
+    const tokens = /`([^`]+)`|\[([^\]]+)\]\(((?:[^()\n]|\([^()\n]*\))*)\)|\*\*(.+?)\*\*|__(.+?)__/g;
+    let end = 0;
+    for (const match of text.matchAll(tokens)) {
+      const [token, code, label, destination, bold, strong] = match;
+      parent.append(text.slice(end, match.index));
+      if (code !== undefined) parent.append(el('code', { textContent: code }));
+      else if (label !== undefined) parent.append(`${label} (${destination})`);
+      else parent.append(el('strong', { textContent: bold ?? strong }));
+      end = match.index + token.length;
+    }
+    parent.append(text.slice(end));
+  }
+
+  // Markdown is untrusted. Only fixed element names and text nodes reach the DOM.
+  function renderMarkdown(markdown) {
+    const article = el('article', { className: 'markdown', ariaLabel: 'Ticket Markdown' });
+    const lists = [];
+    let paragraph = null, fence = null;
+    for (const line of markdown.split(/\r?\n/)) {
+      const fenceMarker = line.match(/^\s*(`{3,}|~{3,})(.*)$/);
+      if (fence) {
+        if (fenceMarker && fenceMarker[1].startsWith(fence.marker) && !fenceMarker[2].trim()) fence = null;
+        else fence.code.append(line + '\n');
+        continue;
+      }
+      if (!line.trim()) {
+        paragraph = null;
+        continue;
+      }
+      const bullet = line.match(/^([ \t]*)([-+*]|\d+[.)])\s+(.*)$/);
+      if (bullet) {
+        const [, whitespace, marker, content] = bullet;
+        const indent = whitespace.replace(/\t/g, '    ').length;
+        const tag = /^\d/.test(marker) ? 'ol' : 'ul';
+        while (lists.length && lists.at(-1).indent > indent) lists.pop();
+        if (lists.at(-1)?.indent === indent && lists.at(-1).tag !== tag) lists.pop();
+        if (!lists.length || lists.at(-1).indent < indent) {
+          const list = tag === 'ol' ? el('ol', { start: parseInt(marker, 10) }) : el('ul');
+          (lists.at(-1)?.list.lastElementChild || article).append(list);
+          lists.push({ indent, tag, list });
+        }
+        const item = el('li');
+        const task = content.match(/^\[([ xX])\]\s+(.*)$/);
+        if (task) {
+          const label = el('label', {}, el('input', { type: 'checkbox', disabled: true, checked: task[1] !== ' ' }));
+          renderInline(label, task[2]);
+          item.append(label);
+        } else renderInline(item, content);
+        lists.at(-1).list.append(item);
+        paragraph = null;
+        continue;
+      }
+      lists.length = 0;
+      const heading = line.match(/^ {0,3}(#{1,6})[ \t]+(.+)$/);
+      if (fenceMarker) {
+        fence = { marker: fenceMarker[1], code: el('code') };
+        article.append(el('pre', {}, fence.code));
+        paragraph = null;
+      } else if (heading) {
+        const node = el(`h${Math.min(6, heading[1].length + 2)}`);
+        renderInline(node, heading[2].replace(/[ \t]+#+[ \t]*$/, '').trim());
+        article.append(node);
+        paragraph = null;
+      } else {
+        if (!paragraph) {
+          paragraph = el('p');
+          article.append(paragraph);
+        } else paragraph.append(' ');
+        renderInline(paragraph, line.trim());
+      }
+    }
+    return article;
+  }
+
   // Keep the screen awake while the page is visible. The Screen Wake Lock API needs a secure
   // context, which plain LAN HTTP is not, so the usual path is a muted, looping, hidden video.
   let wakeLock = null, video = null;
@@ -193,20 +635,51 @@
     } catch (e) { /* offline; the next load() reports it */ }
   }
   setInterval(checkView, VIEW_POLL_MS);
+  setInterval(pollSessions, SESSION_POLL_MS);
 
   const heartbeat = () => { if (!document.hidden) fetch('/heartbeat', { method: 'POST' }).catch(() => {}); };
   setInterval(heartbeat, HEARTBEAT_MS);
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) { releaseAwake(); return; }
-    heartbeat(); keepAwake(); load();
+    heartbeat(); keepAwake(); load(); pollSessions();
   });
   window.addEventListener('pagehide', releaseAwake);
   // Playback may need a user gesture (iOS): retry on every tap until it is running.
   document.addEventListener('pointerdown', keepAwake, { passive: true });
   $('q').addEventListener('input', render);
 
+  const toggleSheet = () => route.page === 'agents' ? history.back() : openPage('agents');
+  let swipeStart = null, sheetSwiped = false;
+  $('sheet-toggle').addEventListener('pointerdown', event => {
+    swipeStart = event.clientY;
+    sheetSwiped = false;
+    event.currentTarget.setPointerCapture(event.pointerId);
+  });
+  $('sheet-toggle').addEventListener('pointerup', event => {
+    const distance = event.clientY - swipeStart;
+    sheetSwiped = swipeStart !== null && Math.abs(distance) > 32;
+    swipeStart = null;
+    if (sheetSwiped && (distance < 0) !== (route.page === 'agents')) toggleSheet();
+  });
+  $('sheet-toggle').addEventListener('pointercancel', () => { swipeStart = null; });
+  $('sheet-toggle').addEventListener('click', event => { if (!sheetSwiped || !event.detail) toggleSheet(); });
+  $('sheet-scrim').addEventListener('click', toggleSheet);
+  $('back').addEventListener('click', () => history.back());
+  window.addEventListener('popstate', event => {
+    const note = $('implement-note');
+    if (note.open) note.close();
+    showPage(event.state?.phone || palette);
+  });
+  new ResizeObserver(() => {
+    const height = document.querySelector('.dock').offsetHeight;
+    document.documentElement.style.setProperty('--dock-height', height + 'px');
+  }).observe(document.querySelector('.dock'));
+
   // Drop the token from the address bar; the cookie carries it from now on.
-  if (location.search.includes('token=')) history.replaceState(null, '', '/');
+  if (location.search.includes('token=')) history.replaceState({ phone: palette }, '', '/');
+  if (history.state?.phone?.page !== undefined && history.state.phone.page !== 'palette') showPage(history.state.phone);
+  renderSessions();
+  pollSessions();
   keepAwake();
   checkView().then(load);
 })();
