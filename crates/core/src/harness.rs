@@ -4,7 +4,9 @@
 //! A Harness is only shown when skills are found for it. `~/.agents/skills` is not owned by
 //! any one Harness, so it is listed as its own "Shared" chip.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+
+use crate::Settings;
 
 /// Placeholder in an Invocation template that is replaced by the skill name.
 pub const NAME: &str = "{name}";
@@ -112,6 +114,58 @@ pub const REGISTRY: &[HarnessDef] = &[
         sources: &[],
     },
 ];
+
+/// A Harness the user defined: a name and an Invocation template. Its skills come only from
+/// Skill Directories assigned to it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CustomHarness {
+    pub id: String,
+    pub name: String,
+    pub template: String,
+}
+
+/// A Harness as the scanner uses it: a registry entry or custom Harness, with the user's
+/// template override applied.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Entry {
+    pub id: String,
+    pub name: String,
+    /// Built-in global skill folders, relative to home (empty for custom Harnesses).
+    pub skill_dirs: Vec<&'static str>,
+    pub template: String,
+}
+
+impl Entry {
+    pub fn invocation(&self, skill_name: &str) -> String {
+        render(&self.template, skill_name)
+    }
+}
+
+/// Registry Harnesses (with template overrides) followed by custom ones.
+pub fn entries(settings: &Settings) -> Vec<Entry> {
+    let builtin = REGISTRY.iter().map(|def| Entry {
+        id: def.id.into(),
+        name: def.name.into(),
+        skill_dirs: def.skill_dirs.to_vec(),
+        template: settings
+            .templates
+            .get(def.id)
+            .cloned()
+            .unwrap_or_else(|| def.template.into()),
+    });
+    let custom = settings.custom_harnesses.iter().map(|h| Entry {
+        id: h.id.clone(),
+        name: h.name.clone(),
+        skill_dirs: Vec::new(),
+        template: h.template.clone(),
+    });
+    builtin.chain(custom).collect()
+}
+
+/// Whether `template` can be used: it must contain `{name}`.
+pub fn valid_template(template: &str) -> bool {
+    template.contains(NAME)
+}
 
 /// Looks up a registry entry by ID.
 pub fn def(id: &str) -> Option<&'static HarnessDef> {

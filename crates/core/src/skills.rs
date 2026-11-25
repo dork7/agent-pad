@@ -5,9 +5,10 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-use crate::harness::{self, Harness, HarnessDef};
+use crate::harness::{self, Entry, Harness};
+use crate::Settings;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Skill {
@@ -22,39 +23,94 @@ pub struct Skill {
     /// Text pasted to trigger the skill in its harness, e.g. `/tdd ` or `$tdd `.
     /// Always ends in a single space.
     pub invocation: String,
+    /// ID of the added Skill Directory it was found in, or `None` for built-in locations.
+    pub directory: Option<String>,
 }
 
-/// All skills found under `home`, sorted by harness (registry order) then name.
-/// A skill found twice under the same ID (e.g. in two folders of one harness) appears once.
-pub fn scan(home: &Path) -> Vec<Skill> {
+/// A Skill Directory the user added, assigned to a Harness.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AddedDirectory {
+    pub id: String,
+    /// Absolute path of the folder holding `<skill>/SKILL.md`.
+    pub path: PathBuf,
+    pub harness: String,
+}
+
+/// A Skill Directory chip as shown in the Pad.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Directory {
+    pub id: String,
+    pub path: PathBuf,
+    pub harness: String,
+    pub skill_count: usize,
+}
+
+/// All skills found under `home` and in added directories, sorted by harness (registry order,
+/// then custom harnesses) then name. A skill found twice under the same ID appears once,
+/// built-in locations first.
+pub fn scan(home: &Path, settings: &Settings) -> Vec<Skill> {
+    let entries = harness::entries(settings);
     let mut skills = Vec::new();
-    for def in harness::REGISTRY {
-        for dir in def.skill_dirs {
+    for entry in &entries {
+        for dir in &entry.skill_dirs {
             for (dir_name, skill_md) in skill_files(&home.join(dir)) {
-                skills.push(make_skill(def, None, &dir_name, &skill_md));
+                skills.push(make_skill(entry, None, None, &dir_name, &skill_md));
             }
         }
-        if def.id == "claude" {
-            skills.extend(scan_claude_plugins(home, def));
+        if entry.id == "claude" {
+            skills.extend(scan_claude_plugins(home, entry));
+        }
+        for added in settings
+            .directories
+            .iter()
+            .filter(|d| d.harness == entry.id)
+        {
+            for (dir_name, skill_md) in skill_files(&added.path) {
+                skills.push(make_skill(
+                    entry,
+                    Some(&added.id),
+                    None,
+                    &dir_name,
+                    &skill_md,
+                ));
+            }
         }
     }
-    let order = |id: &str| harness::REGISTRY.iter().position(|h| h.id == id);
+    let order = |id: &str| entries.iter().position(|h| h.id == id);
+    // Stable sort keeps built-in locations ahead of added ones for the same ID.
     skills.sort_by(|a, b| (order(&a.harness), &a.name).cmp(&(order(&b.harness), &b.name)));
     skills.dedup_by(|a, b| a.id == b.id);
     skills
 }
 
-/// Harness chips: one per registry entry with at least one skill, in registry order.
-pub fn harnesses(skills: &[Skill]) -> Vec<Harness> {
-    harness::REGISTRY
-        .iter()
-        .filter_map(|def| {
-            let skill_count = skills.iter().filter(|s| s.harness == def.id).count();
-            (skill_count > 0).then(|| Harness {
-                id: def.id.into(),
-                name: def.name.into(),
+/// Harness chips: one per harness with at least one skill, in scan order.
+pub fn harnesses(skills: &[Skill], settings: &Settings) -> Vec<Harness> {
+    harness::entries(settings)
+        .into_iter()
+        .filter_map(|entry| {
+            let skill_count = skills.iter().filter(|s| s.harness == entry.id).count();
+            (skill_count > 0).then_some(Harness {
+                id: entry.id,
+                name: entry.name,
                 skill_count,
             })
+        })
+        .collect()
+}
+
+/// Added Skill Directory chips with their skill counts.
+pub fn directories(skills: &[Skill], settings: &Settings) -> Vec<Directory> {
+    settings
+        .directories
+        .iter()
+        .map(|d| Directory {
+            id: d.id.clone(),
+            path: d.path.clone(),
+            harness: d.harness.clone(),
+            skill_count: skills
+                .iter()
+                .filter(|s| s.directory.as_deref() == Some(d.id.as_str()))
+                .count(),
         })
         .collect()
 }
@@ -62,7 +118,7 @@ pub fn harnesses(skills: &[Skill]) -> Vec<Harness> {
 /// Claude Code plugin skills in
 /// `~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/skills/<skill>/SKILL.md`,
 /// where only the newest version of each plugin counts. Named `<plugin>:<skill>`.
-fn scan_claude_plugins(home: &Path, def: &HarnessDef) -> Vec<Skill> {
+fn scan_claude_plugins(home: &Path, entry: &Entry) -> Vec<Skill> {
     let mut skills = Vec::new();
     for marketplace in subdirs(&home.join(".claude/plugins/cache")) {
         for plugin in subdirs(&marketplace) {
@@ -71,14 +127,26 @@ fn scan_claude_plugins(home: &Path, def: &HarnessDef) -> Vec<Skill> {
             };
             let plugin_name = file_name(&plugin);
             for (dir_name, skill_md) in skill_files(&newest.join("skills")) {
-                skills.push(make_skill(def, Some(&plugin_name), &dir_name, &skill_md));
+                skills.push(make_skill(
+                    entry,
+                    None,
+                    Some(&plugin_name),
+                    &dir_name,
+                    &skill_md,
+                ));
             }
         }
     }
     skills
 }
 
-fn make_skill(def: &HarnessDef, plugin: Option<&str>, dir_name: &str, skill_md: &Path) -> Skill {
+fn make_skill(
+    entry: &Entry,
+    directory: Option<&str>,
+    plugin: Option<&str>,
+    dir_name: &str,
+    skill_md: &Path,
+) -> Skill {
     let front = fs::read_to_string(skill_md)
         .map(|t| parse_frontmatter(&t))
         .unwrap_or_default();
@@ -88,11 +156,12 @@ fn make_skill(def: &HarnessDef, plugin: Option<&str>, dir_name: &str, skill_md: 
         None => base,
     };
     Skill {
-        id: format!("{}:{name}", def.id),
-        harness: def.id.into(),
-        invocation: def.invocation(&name),
+        id: format!("{}:{name}", entry.id),
+        harness: entry.id.clone(),
+        invocation: entry.invocation(&name),
         name,
         description: front.description.unwrap_or_default(),
+        directory: directory.map(str::to_string),
     }
 }
 

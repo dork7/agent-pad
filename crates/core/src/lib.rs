@@ -15,16 +15,16 @@ pub mod testing;
 
 use std::io;
 use std::net::SocketAddr;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, RwLock};
 
 pub use clock::{Clock, SystemClock};
-pub use harness::Harness;
+pub use harness::{CustomHarness, Harness};
 pub use paste::{PadWindow, Paster, SystemPaster};
 pub use phones::{Phone, PhoneError};
-pub use settings::Settings;
+pub use settings::{Settings, SettingsError};
 pub use sharing::SharingInfo;
-pub use skills::Skill;
+pub use skills::{Directory, Skill};
 
 /// Everything the Core needs from the outside world. Tests swap in a temp home,
 /// a [`testing::RecordingPaster`] and a [`testing::FakeClock`].
@@ -60,10 +60,35 @@ pub enum PasteError {
 }
 
 impl State {
+    /// Scans for skills now with the current settings. Skills are never cached.
+    pub fn scan(&self) -> Vec<Skill> {
+        let settings = self.settings.lock().unwrap().clone();
+        skills::scan(&self.home, &settings)
+    }
+
+    pub fn harnesses(&self) -> Vec<Harness> {
+        let settings = self.settings.lock().unwrap().clone();
+        skills::harnesses(&skills::scan(&self.home, &settings), &settings)
+    }
+
+    /// Changes settings and saves them; nothing is saved if `change` fails.
+    pub fn change_settings<T>(
+        &self,
+        change: impl FnOnce(&mut Settings) -> Result<T, SettingsError>,
+    ) -> Result<T, SettingsError> {
+        let mut settings = self.settings.lock().unwrap();
+        let mut updated = settings.clone();
+        let value = change(&mut updated)?;
+        settings::save(&self.home, &updated).map_err(|e| SettingsError::Io(e.to_string()))?;
+        *settings = updated;
+        Ok(value)
+    }
+
     /// Builds the Invocation for `skill_id` from a fresh scan and pastes it, waiting until the
     /// paste is done. The phone only ever sends an ID, so arbitrary text is never pasted.
     pub fn paste_skill(&self, skill_id: &str) -> Result<Skill, PasteError> {
-        let skill = skills::scan(&self.home)
+        let skill = self
+            .scan()
             .into_iter()
             .find(|s| s.id == skill_id)
             .ok_or(PasteError::UnknownSkill)?;
@@ -106,12 +131,12 @@ impl Core {
 
     /// Scan for skills now. Skills are never cached: every call reads the disk.
     pub fn list_skills(&self) -> Vec<Skill> {
-        skills::scan(&self.state.home)
+        self.state.scan()
     }
 
     /// Harness chips with at least one skill, rescanned on every call.
     pub fn list_harnesses(&self) -> Vec<Harness> {
-        skills::harnesses(&skills::scan(&self.state.home))
+        self.state.harnesses()
     }
 
     /// Registers the Pad window so the paste flow can hide it before pasting.
@@ -160,5 +185,135 @@ impl Core {
     /// Deletes a Phone and its saved View, and shuts it out until it scans again.
     pub fn forget_phone(&self, id: &str) -> Result<(), PhoneError> {
         self.state.forget_phone(id)
+    }
+
+    /// Added Skill Directory chips with skill counts.
+    pub fn list_directories(&self) -> Vec<Directory> {
+        let settings = self.state.settings.lock().unwrap().clone();
+        skills::directories(&skills::scan(&self.state.home, &settings), &settings)
+    }
+
+    /// Adds a folder as a Skill Directory of `harness`. Returns the new directory's ID.
+    pub fn add_directory(&self, path: &Path, harness: &str) -> Result<String, SettingsError> {
+        if !path.is_absolute() || !path.is_dir() {
+            return Err(SettingsError::NotAFolder);
+        }
+        self.state.change_settings(|s| {
+            if !harness::entries(s).iter().any(|h| h.id == harness) {
+                return Err(SettingsError::UnknownHarness);
+            }
+            if s.directories.iter().any(|d| d.path == path) {
+                return Err(SettingsError::AlreadyAdded);
+            }
+            let id = settings::unique_id(
+                &settings::slug(&path.file_name().unwrap_or_default().to_string_lossy()),
+                |id| s.directories.iter().any(|d| d.id == id),
+            );
+            s.directories.push(skills::AddedDirectory {
+                id: id.clone(),
+                path: path.to_path_buf(),
+                harness: harness.to_string(),
+            });
+            Ok(id)
+        })
+    }
+
+    /// Removes an added Skill Directory and drops its chip from every Phone's View.
+    pub fn remove_directory(&self, id: &str) -> Result<(), SettingsError> {
+        self.state.change_settings(|s| {
+            let before = s.directories.len();
+            s.directories.retain(|d| d.id != id);
+            if s.directories.len() == before {
+                return Err(SettingsError::UnknownDirectory);
+            }
+            let chip = format!("d:{id}");
+            for phone in &mut s.phones {
+                if let Some(view) = &mut phone.view {
+                    view.retain(|c| *c != chip);
+                }
+            }
+            Ok(())
+        })
+    }
+
+    /// Defines a custom Harness. Returns its ID.
+    pub fn add_custom_harness(&self, name: &str, template: &str) -> Result<String, SettingsError> {
+        let name = name.trim();
+        if name.is_empty() {
+            return Err(SettingsError::EmptyName);
+        }
+        if !harness::valid_template(template) {
+            return Err(SettingsError::TemplateWithoutName);
+        }
+        self.state.change_settings(|s| {
+            let id = settings::unique_id(&format!("custom-{}", settings::slug(name)), |id| {
+                harness::entries(s).iter().any(|h| h.id == id)
+            });
+            s.custom_harnesses.push(CustomHarness {
+                id: id.clone(),
+                name: name.to_string(),
+                template: template.to_string(),
+            });
+            Ok(id)
+        })
+    }
+
+    /// Deletes a custom Harness. Refused while Skill Directories are assigned to it.
+    pub fn remove_custom_harness(&self, id: &str) -> Result<(), SettingsError> {
+        self.state.change_settings(|s| {
+            if !s.custom_harnesses.iter().any(|h| h.id == id) {
+                return Err(SettingsError::UnknownHarness);
+            }
+            if s.directories.iter().any(|d| d.harness == id) {
+                return Err(SettingsError::HarnessInUse);
+            }
+            s.custom_harnesses.retain(|h| h.id != id);
+            let chip = format!("h:{id}");
+            for phone in &mut s.phones {
+                if let Some(view) = &mut phone.view {
+                    view.retain(|c| *c != chip);
+                }
+            }
+            Ok(())
+        })
+    }
+
+    /// Sets a Harness's Invocation template. `{name}` is replaced by the skill name and one
+    /// trailing space is always added.
+    pub fn set_template(&self, harness: &str, template: &str) -> Result<(), SettingsError> {
+        if !harness::valid_template(template) {
+            return Err(SettingsError::TemplateWithoutName);
+        }
+        self.state.change_settings(|s| {
+            if let Some(custom) = s.custom_harnesses.iter_mut().find(|h| h.id == harness) {
+                custom.template = template.to_string();
+            } else if harness::def(harness).is_some() {
+                s.templates
+                    .insert(harness.to_string(), template.to_string());
+            } else {
+                return Err(SettingsError::UnknownHarness);
+            }
+            Ok(())
+        })
+    }
+
+    /// Restores a registry Harness's documented template.
+    pub fn reset_template(&self, harness: &str) -> Result<(), SettingsError> {
+        self.state.change_settings(|s| {
+            if harness::def(harness).is_none() {
+                return Err(SettingsError::UnknownHarness);
+            }
+            s.templates.remove(harness);
+            Ok(())
+        })
+    }
+
+    /// Every Harness with its current template, including ones with no skills yet.
+    pub fn list_templates(&self) -> Vec<(String, String, String)> {
+        let settings = self.state.settings.lock().unwrap().clone();
+        harness::entries(&settings)
+            .into_iter()
+            .map(|e| (e.id, e.name, e.template))
+            .collect()
     }
 }

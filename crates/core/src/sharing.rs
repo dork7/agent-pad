@@ -35,13 +35,12 @@ pub struct SharingInfo {
 
 #[derive(Default)]
 pub(crate) struct Sharing {
-    address_override: Option<IpAddr>,
     running: Option<Running>,
 }
 
 impl Sharing {
-    fn address(&self) -> io::Result<IpAddr> {
-        let address = match self.address_override {
+    fn address(address_override: Option<IpAddr>) -> io::Result<IpAddr> {
+        let address = match address_override {
             Some(address) => address,
             None => primary_lan_address()?,
         };
@@ -57,19 +56,34 @@ impl Sharing {
 
 impl Core {
     /// Choose the address for the next start. Pass `None` to use the primary LAN address.
+    /// The choice is saved in settings.
     pub fn set_sharing_address_override(&self, address: Option<IpAddr>) {
-        self.sharing.lock().unwrap().address_override = address;
+        let saved = self.state.change_settings(|s| {
+            s.network_override = address;
+            Ok(())
+        });
+        if let Err(error) = saved {
+            eprintln!("skills-pad: {error}");
+        }
+    }
+
+    /// The saved address override, if any.
+    pub fn sharing_address_override(&self) -> Option<IpAddr> {
+        self.state.settings.lock().unwrap().network_override
     }
 
     /// Return the address the next start will use, without starting a listener.
     pub fn sharing_address(&self) -> io::Result<IpAddr> {
-        self.sharing.lock().unwrap().address()
+        Sharing::address(self.sharing_address_override())
     }
 
     /// Start sharing on a fresh port with a new token, replacing any active sharing.
     pub fn start_sharing(&self) -> io::Result<SharingInfo> {
         let mut sharing = self.sharing.lock().unwrap();
-        let running = Running::start(self.state.clone(), sharing.address()?)?;
+        let running = Running::start(
+            self.state.clone(),
+            Sharing::address(self.sharing_address_override())?,
+        )?;
         let info = running.info.clone();
         sharing.running = Some(running);
         Ok(info)

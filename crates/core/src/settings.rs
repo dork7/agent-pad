@@ -22,6 +22,14 @@ pub struct Settings {
     pub send_enter: bool,
     /// Known Phones, with their names and Views.
     pub phones: Vec<crate::phones::PhoneRecord>,
+    /// Skill Directories the user added, each assigned to a Harness.
+    pub directories: Vec<crate::skills::AddedDirectory>,
+    /// Harnesses the user defined.
+    pub custom_harnesses: Vec<crate::harness::CustomHarness>,
+    /// Invocation template overrides for registry Harnesses, by Harness ID.
+    pub templates: std::collections::BTreeMap<String, String>,
+    /// The network address to share on instead of the automatically chosen one.
+    pub network_override: Option<std::net::IpAddr>,
 }
 
 /// The Skills Pad config folder for `home` on this OS.
@@ -41,7 +49,7 @@ pub(crate) fn settings_path(home: &Path) -> PathBuf {
 }
 
 /// Loads settings, falling back to defaults when the file is missing or unreadable.
-pub(crate) fn load(home: &Path) -> Settings {
+pub fn load(home: &Path) -> Settings {
     fs::read_to_string(settings_path(home))
         .ok()
         .and_then(|text| serde_json::from_str(&text).ok())
@@ -65,4 +73,70 @@ pub(crate) fn save(home: &Path, settings: &Settings) -> io::Result<()> {
         serde_json::to_vec_pretty(&fields).map_err(io::Error::other)?,
     )?;
     fs::rename(tmp, path)
+}
+
+/// Why a settings change was refused.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SettingsError {
+    /// The path is not an existing absolute folder.
+    NotAFolder,
+    /// The folder is already a Skill Directory.
+    AlreadyAdded,
+    UnknownHarness,
+    UnknownDirectory,
+    /// A custom Harness needs a name.
+    EmptyName,
+    /// A template must contain `{name}`.
+    TemplateWithoutName,
+    /// Skill Directories are still assigned to this Harness.
+    HarnessInUse,
+    /// Saving the settings file failed.
+    Io(String),
+}
+
+impl std::fmt::Display for SettingsError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let text = match self {
+            Self::NotAFolder => "Choose an existing folder.",
+            Self::AlreadyAdded => "That folder is already a skill directory.",
+            Self::UnknownHarness => "That harness doesn't exist.",
+            Self::UnknownDirectory => "That skill directory doesn't exist.",
+            Self::EmptyName => "Give the harness a name.",
+            Self::TemplateWithoutName => "The template must contain {name}.",
+            Self::HarnessInUse => "Move or remove its skill directories first.",
+            Self::Io(e) => return write!(f, "Could not save settings: {e}"),
+        };
+        f.write_str(text)
+    }
+}
+
+impl std::error::Error for SettingsError {}
+
+/// Lowercase ASCII letters, digits and dashes, e.g. `Team Skills` → `team-skills`.
+pub(crate) fn slug(text: &str) -> String {
+    let mut slug = String::new();
+    for c in text.chars() {
+        if c.is_ascii_alphanumeric() {
+            slug.push(c.to_ascii_lowercase());
+        } else if !slug.ends_with('-') && !slug.is_empty() {
+            slug.push('-');
+        }
+    }
+    let slug = slug.trim_end_matches('-').to_string();
+    if slug.is_empty() {
+        "folder".into()
+    } else {
+        slug
+    }
+}
+
+/// `base`, or `base-2`, `base-3`… if `taken`.
+pub(crate) fn unique_id(base: &str, taken: impl Fn(&str) -> bool) -> String {
+    if !taken(base) {
+        return base.to_string();
+    }
+    (2..)
+        .map(|n| format!("{base}-{n}"))
+        .find(|id| !taken(id))
+        .expect("some id is free")
 }

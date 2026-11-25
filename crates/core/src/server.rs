@@ -7,7 +7,7 @@ use std::thread::JoinHandle;
 
 use tiny_http::{Header, Method, Request, Response, Server};
 
-use crate::{skills, State};
+use crate::State;
 
 pub(crate) struct Running {
     pub addr: SocketAddr,
@@ -57,11 +57,11 @@ fn handle(state: &State, request: Request) {
 }
 
 pub(crate) fn skills_response(state: &State) -> Response<io::Cursor<Vec<u8>>> {
-    json(&skills::scan(&state.home))
+    json(&state.scan())
 }
 
 pub(crate) fn harnesses_response(state: &State) -> Response<io::Cursor<Vec<u8>>> {
-    json(&skills::harnesses(&skills::scan(&state.home)))
+    json(&state.harnesses())
 }
 
 pub(crate) fn json_status<T: serde::Serialize>(
