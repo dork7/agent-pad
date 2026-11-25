@@ -5,8 +5,10 @@
 
 pub mod clock;
 pub mod harness;
+mod hooks;
 pub mod paste;
 mod server;
+mod sessions;
 mod sharing;
 pub mod skills;
 pub mod testing;
@@ -14,11 +16,13 @@ pub mod testing;
 use std::io;
 use std::net::SocketAddr;
 use std::path::PathBuf;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 
 pub use clock::{Clock, SystemClock};
 pub use harness::Harness;
+pub use hooks::ClaudeHooksPreview;
 pub use paste::{PadWindow, Paster, SystemPaster};
+pub use sessions::{Session, SessionStatus, CLAUDE_HOOKS_RESTART_NOTICE};
 pub use sharing::SharingInfo;
 pub use skills::Skill;
 
@@ -35,8 +39,9 @@ pub struct CoreConfig {
 /// Dropping it stops both the local API and any active sharing.
 pub struct Core {
     state: Arc<State>,
+    hook_listener: hooks::Listener,
     server: server::Running,
-    sharing: std::sync::Mutex<sharing::Sharing>,
+    sharing: Mutex<sharing::Sharing>,
 }
 
 pub(crate) struct State {
@@ -44,6 +49,7 @@ pub(crate) struct State {
     pub clock: Arc<dyn Clock>,
     pub pad: Arc<RwLock<Arc<dyn PadWindow>>>,
     pub pastes: paste::PasteQueue,
+    pub sessions: Mutex<sessions::Sessions>,
 }
 
 /// Why a paste request was refused.
@@ -75,12 +81,15 @@ impl Core {
             clock: config.clock,
             pastes: paste::PasteQueue::start(config.paster, pad.clone()),
             pad,
+            sessions: Default::default(),
         });
         let server = server::start(state.clone())?;
+        let hook_listener = hooks::Listener::new(&state.home, server.addr.port())?;
         Ok(Core {
             state,
             server,
             sharing: Default::default(),
+            hook_listener,
         })
     }
 

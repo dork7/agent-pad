@@ -1,0 +1,172 @@
+//! In-memory session state. Ended sessions retain their final elapsed time and
+//! disappear after one minute. A Core restart starts with an empty session list.
+
+use std::collections::BTreeMap;
+use std::path::PathBuf;
+use std::time::{Duration, Instant};
+
+use serde::{Deserialize, Serialize};
+
+use crate::{Core, State};
+
+const ENDED_RETENTION: Duration = Duration::from_secs(60);
+
+/// Display after installing Claude Code hooks.
+pub const CLAUDE_HOOKS_RESTART_NOTICE: &str =
+    "Restart Claude Code sessions started before hooks were installed.";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SessionStatus {
+    Working,
+    NeedsInput,
+    Idle,
+    Ended,
+    Stuck,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Session {
+    pub session_id: String,
+    /// Stable harness ID, as used by skill and harness chips.
+    pub harness: String,
+    /// Working directory from the most recent recognized event.
+    pub project_folder: PathBuf,
+    pub status: SessionStatus,
+    pub elapsed_seconds: u64,
+    /// Number of tool calls observed at PreToolUse.
+    pub tool_count: u64,
+}
+
+pub(crate) enum Event {
+    Start,
+    Working,
+    ToolStarted,
+    Permission,
+    Stop,
+    End,
+}
+
+struct TrackedSession {
+    project_folder: PathBuf,
+    status: SessionStatus,
+    started: Instant,
+    last_event: Instant,
+    tool_count: u64,
+}
+
+pub(crate) struct Sessions {
+    by_id: BTreeMap<(&'static str, String), TrackedSession>,
+    stuck_threshold: Duration,
+}
+
+impl Default for Sessions {
+    fn default() -> Self {
+        Self {
+            by_id: BTreeMap::new(),
+            stuck_threshold: Duration::from_secs(5 * 60),
+        }
+    }
+}
+
+impl Sessions {
+    pub(crate) fn record(
+        &mut self,
+        harness: &'static str,
+        id: String,
+        cwd: PathBuf,
+        event: Event,
+        now: Instant,
+    ) {
+        self.expire_ended(now);
+        let key = (harness, id);
+        if matches!(event, Event::Start) {
+            self.by_id.insert(
+                key,
+                TrackedSession {
+                    project_folder: cwd,
+                    status: SessionStatus::Idle,
+                    started: now,
+                    last_event: now,
+                    tool_count: 0,
+                },
+            );
+            return;
+        }
+
+        let Some(session) = self.by_id.get_mut(&key) else {
+            return;
+        };
+        if session.status == SessionStatus::Ended {
+            return;
+        }
+        session.project_folder = cwd;
+        session.last_event = now;
+        session.status = match event {
+            Event::Start => unreachable!("start handled above"),
+            Event::Working => SessionStatus::Working,
+            Event::ToolStarted => {
+                session.tool_count += 1;
+                SessionStatus::Working
+            }
+            Event::Permission => SessionStatus::NeedsInput,
+            Event::Stop => SessionStatus::Idle,
+            Event::End => SessionStatus::Ended,
+        };
+    }
+
+    fn expire_ended(&mut self, now: Instant) {
+        self.by_id.retain(|_, session| {
+            session.status != SessionStatus::Ended
+                || now.duration_since(session.last_event) < ENDED_RETENTION
+        });
+    }
+
+    fn list(&mut self, now: Instant) -> Vec<Session> {
+        self.expire_ended(now);
+        self.by_id
+            .iter()
+            .map(|((harness, id), session)| {
+                let status = match session.status {
+                    SessionStatus::Working
+                        if now.duration_since(session.last_event) >= self.stuck_threshold =>
+                    {
+                        SessionStatus::Stuck
+                    }
+                    status => status,
+                };
+                let until = if status == SessionStatus::Ended {
+                    session.last_event
+                } else {
+                    now
+                };
+                Session {
+                    session_id: id.clone(),
+                    harness: (*harness).into(),
+                    project_folder: session.project_folder.clone(),
+                    status,
+                    elapsed_seconds: until.duration_since(session.started).as_secs(),
+                    tool_count: session.tool_count,
+                }
+            })
+            .collect()
+    }
+}
+
+impl State {
+    pub(crate) fn list_sessions(&self) -> Vec<Session> {
+        self.sessions.lock().unwrap().list(self.clock.now())
+    }
+}
+
+impl Core {
+    /// Return current session snapshots, including recently ended sessions.
+    pub fn list_sessions(&self) -> Vec<Session> {
+        self.state.list_sessions()
+    }
+
+    /// Change the working-to-stuck timeout for this Core.
+    pub fn set_stuck_threshold(&self, threshold: Duration) {
+        self.state.sessions.lock().unwrap().stuck_threshold = threshold;
+    }
+}
