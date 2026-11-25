@@ -1,10 +1,11 @@
 {
   "identifier": "pad",
-  "description": "Receive tray updates and manage start at login in the Pad window",
+  "description": "Receive tray updates, manage start at login, and choose skill folders in the Pad window",
   "windows": ["pad"],
   "permissions": [
     "core:event:allow-listen",
     "core:event:allow-unlisten",
-    "autostart:default"
+    "autostart:default",
+    "dialog:allow-open"
   ]
 }

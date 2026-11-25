@@ -15,6 +15,7 @@
         "minWidth": 380,
         "minHeight": 320,
         "alwaysOnTop": false,
+        "dragDropEnabled": false,
         "center": true
       }
     ],

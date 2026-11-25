@@ -55,27 +55,6 @@ grantButton.addEventListener("click", async () => {
   }
 });
 
-async function refreshHarnesses() {
-  const list = byId("harnesses");
-  try {
-    const harnesses = await invoke("list_harnesses");
-    list.replaceChildren(...harnesses.map(({ name, skill_count }) => {
-      const chip = document.createElement("li");
-      chip.className = "chip";
-      const count = document.createElement("span");
-      count.className = "count";
-      count.textContent = skill_count;
-      count.setAttribute("aria-label", `${skill_count} ${skill_count === 1 ? "skill" : "skills"}`);
-      chip.append(name, count);
-      return chip;
-    }));
-    setMessage("harness-message", harnesses.length ? null : "No skills found.");
-  } catch (error) {
-    list.replaceChildren();
-    setMessage("harness-message", `Could not list harnesses: ${error}`);
-  }
-}
-
 function renderSharing(info) {
   const active = Boolean(info);
   const status = byId("sharing-status");
@@ -168,75 +147,263 @@ function lastSeen(unix) {
   return `${Math.round(seconds / 86400)} days ago`;
 }
 
-let renamingPhone = null;
-
-async function phoneAction(command, args) {
-  setMessage("phones-error", null);
-  try {
-    await invoke(command, args);
-  } catch (error) {
-    setMessage("phones-error", error);
-  }
-  renamingPhone = null;
-  refreshPhones();
-}
+const phoneCards = new Map();
+const phonesList = byId("phones");
+let phoneRequest = 0;
+let phoneBusy = false;
+let draggingChip = null;
+let overCard = null;
+let chipCatalog = new Map();
+let palette = [];
 
 function button(label, className, onClick) {
-  const b = document.createElement("button");
-  b.type = "button";
-  b.className = `btn ${className}`;
-  b.textContent = label;
-  b.addEventListener("click", onClick);
-  return b;
+  const element = document.createElement("button");
+  element.type = "button";
+  element.className = `btn ${className}`;
+  element.textContent = label;
+  element.addEventListener("click", onClick);
+  return element;
+}
+
+function chipLabel(chip) {
+  return chipCatalog.get(chip) ?? chip.slice(2);
+}
+
+function chipElement(tag, chip) {
+  const element = document.createElement(tag);
+  element.className = chip.startsWith("d:") ? "chip dir" : "chip";
+  element.textContent = chipLabel(chip);
+  return element;
+}
+
+function renderPalette(chips, labels) {
+  if (JSON.stringify([chips, [...labels]]) === JSON.stringify([palette, [...chipCatalog]])) return;
+  finishDrag();
+  palette = chips;
+  chipCatalog = labels;
+  byId("chip-palette").replaceChildren(...chips.map((chip) => {
+    const element = chipElement("li", chip);
+    element.draggable = true;
+    element.addEventListener("dragstart", (event) => {
+      draggingChip = chip;
+      event.dataTransfer.effectAllowed = "copy";
+      event.dataTransfer.setData("text/plain", chip);
+    });
+    return element;
+  }));
+}
+
+function highlightDrop(card) {
+  if (overCard === card) return;
+  overCard?.classList.remove("over");
+  overCard = card;
+  overCard?.classList.add("over");
+}
+
+function finishDrag() {
+  draggingChip = null;
+  highlightDrop(null);
+}
+
+document.addEventListener("dragend", finishDrag);
+document.addEventListener("dragover", (event) => {
+  if (!draggingChip) return;
+  const card = event.target.closest(".phonecard");
+  highlightDrop(card);
+  if (!card) return;
+  event.preventDefault();
+  event.dataTransfer.dropEffect = "copy";
+});
+phonesList.addEventListener("drop", (event) => {
+  const card = event.target.closest(".phonecard");
+  if (!card || !draggingChip) return;
+  event.preventDefault();
+  const chip = draggingChip;
+  finishDrag();
+  addPhoneChip(phoneCards.get(card.dataset.phoneId).phone, chip);
+});
+
+async function phoneAction(command, args, message) {
+  if (phoneBusy) return;
+  phoneBusy = true;
+  ++phoneRequest;
+  setMessage("phones-error", null);
+  byId("phones-status").textContent = "";
+  try {
+    await invoke(command, args);
+    byId("phones-status").textContent = message;
+  } catch (error) {
+    setMessage("phones-error", error);
+  } finally {
+    phoneBusy = false;
+    await refreshPhones();
+  }
+}
+
+function addPhoneChip(phone, chip) {
+  if (phone.view === null || phone.view.includes(chip)) {
+    byId("phones-status").textContent = `${phone.name} already has ${chipLabel(chip)}.`;
+    return;
+  }
+  phoneAction("add_chip_to_phone", { id: phone.id, chip },
+    `Added ${chipLabel(chip)} to ${phone.name}.`);
+}
+
+function createPhoneCard(id) {
+  const item = document.createElement("li");
+  item.className = "phonecard";
+  item.dataset.phoneId = id;
+
+  const head = document.createElement("div");
+  head.className = "phone-head";
+  const dot = document.createElement("span");
+  dot.className = "dot";
+  dot.setAttribute("aria-hidden", "true");
+  const name = document.createElement("b");
+  const seen = document.createElement("span");
+  seen.className = "muted";
+  head.append(dot, name, seen);
+
+  const drop = document.createElement("div");
+  drop.className = "drop";
+  const actions = document.createElement("div");
+  actions.className = "actions";
+  const card = { item, dot, name, seen, drop };
+  const rename = button("Rename", "", () => {
+    if (phoneBusy || !name.isConnected) return;
+    const input = document.createElement("input");
+    input.value = card.phone.name;
+    input.setAttribute("aria-label", `New name for ${card.phone.name}`);
+    let finished = false;
+    function finish(save, restoreFocus) {
+      if (finished) return;
+      finished = true;
+      input.replaceWith(name);
+      if (restoreFocus) rename.focus();
+      if (save && input.value.trim() && input.value.trim() !== card.phone.name) {
+        phoneAction("rename_phone", { id, name: input.value }, "Phone renamed.");
+      }
+    }
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === "Escape") {
+        event.preventDefault();
+        finish(event.key === "Enter", true);
+      }
+    });
+    input.addEventListener("blur", () => finish(true, false));
+    name.replaceWith(input);
+    input.focus();
+    input.select();
+  });
+  card.rename = rename;
+  actions.append(rename,
+    button("Disconnect", "", () => phoneAction("disconnect_phone", { id }, "Phone disconnected.")),
+    button("Forget", "danger", () => phoneAction("forget_phone", { id }, "Phone forgotten.")),
+  );
+  item.append(head, drop, actions);
+  return card;
+}
+
+function renderPhoneView(card, phone) {
+  const chips = phone.view ?? palette;
+  const available = phone.view === null ? [] : palette.filter((chip) => !chips.includes(chip));
+  const key = JSON.stringify([
+    phone.name, phone.view === null,
+    chips.map((chip) => [chip, chipLabel(chip)]),
+    available.map((chip) => [chip, chipLabel(chip)]),
+  ]);
+  if (key === card.viewKey) return;
+  card.viewKey = key;
+
+  const focus = card.drop.contains(document.activeElement) ? document.activeElement : null;
+  const parts = chips.map((chip) => {
+    const element = chipElement("span", chip);
+    const remove = button("×", "remove-chip", () => {
+      phoneAction("remove_chip_from_phone", { id: phone.id, chip },
+        `Removed ${chipLabel(chip)} from ${phone.name}.`);
+    });
+    remove.dataset.chip = chip;
+    remove.setAttribute("aria-label", `Remove ${chipLabel(chip)} from ${phone.name}`);
+    element.append(remove);
+    return element;
+  });
+
+  if (phone.view === null || !chips.length) {
+    const note = document.createElement("span");
+    note.className = "muted view-note";
+    note.textContent = phone.view === null ? "Everything" : "Sees nothing · drop chips here";
+    parts.unshift(note);
+  }
+
+  const controls = document.createElement("form");
+  controls.className = "view-controls";
+  let select;
+  if (available.length) {
+    select = document.createElement("select");
+    select.required = true;
+    select.setAttribute("aria-label", `Add a chip to ${phone.name}`);
+    const prompt = new Option("Add…", "");
+    prompt.disabled = true;
+    select.add(prompt);
+    for (const chip of available) select.add(new Option(chipLabel(chip), chip));
+    select.value = "";
+    const add = document.createElement("button");
+    add.type = "submit";
+    add.className = "btn";
+    add.textContent = "Add";
+    controls.append(select, add);
+    controls.addEventListener("submit", (event) => {
+      event.preventDefault();
+      addPhoneChip(card.phone, select.value);
+    });
+  }
+  if (phone.view !== null) {
+    const shareAll = button("Share everything", "", () =>
+      phoneAction("set_phone_view", { id: phone.id, view: null }, `${phone.name} can see everything.`));
+    controls.append(shareAll);
+  }
+  if (controls.childElementCount) parts.push(controls);
+  card.drop.replaceChildren(...parts);
+
+  if (focus) {
+    const sameChip = [...card.drop.querySelectorAll(".remove-chip")]
+      .find((remove) => remove.dataset.chip === focus.dataset.chip);
+    (sameChip ?? select ?? card.drop.querySelector(".view-controls button[type=button]") ?? card.rename).focus();
+  }
 }
 
 async function refreshPhones() {
-  if (renamingPhone) return; // don't clobber the rename field while typing
-  let phones;
+  if (phoneBusy) return;
+  const request = ++phoneRequest;
   try {
-    phones = await invoke("list_phones");
+    const phones = await invoke("list_phones");
+    if (request !== phoneRequest) return;
+    const known = new Set(phones.map(({ id }) => id));
+    for (const [id, card] of phoneCards) {
+      if (!known.has(id)) {
+        if (card.item.contains(document.activeElement)) byId("phones-heading").focus();
+        card.item.remove();
+        phoneCards.delete(id);
+      }
+    }
+    byId("phones-message").hidden = phones.length > 0;
+    for (const phone of phones) {
+      let card = phoneCards.get(phone.id);
+      if (!card) {
+        card = createPhoneCard(phone.id);
+        phoneCards.set(phone.id, card);
+        phonesList.append(card.item);
+      }
+      card.phone = phone;
+      card.dot.classList.toggle("active", phone.online);
+      if (card.name.textContent !== phone.name) card.name.textContent = phone.name;
+      const status = phone.online ? "Online" : `Last seen ${lastSeen(phone.last_seen)}`;
+      if (card.seen.textContent !== status) card.seen.textContent = status;
+      renderPhoneView(card, phone);
+    }
   } catch (error) {
-    setMessage("phones-error", `Could not list phones: ${error}`);
-    return;
+    if (request === phoneRequest) setMessage("phones-error", `Could not list phones: ${error}`);
   }
-  byId("phones-message").hidden = phones.length > 0;
-  byId("phones").replaceChildren(...phones.map((phone) => {
-    const item = document.createElement("li");
-    item.className = "phone";
-    const dot = document.createElement("span");
-    dot.className = `dot${phone.online ? " active" : ""}`;
-    dot.setAttribute("aria-label", phone.online ? "Online" : "Offline");
-    const who = document.createElement("div");
-    who.className = "who";
-    const name = document.createElement("b");
-    name.textContent = phone.name;
-    const seen = document.createElement("span");
-    seen.className = "muted";
-    seen.textContent = phone.online ? "Online" : `Last seen ${lastSeen(phone.last_seen)}`;
-    who.append(name, seen);
-    const actions = document.createElement("div");
-    actions.className = "actions";
-    actions.append(
-      button("Rename", "", () => {
-        renamingPhone = phone.id;
-        const input = document.createElement("input");
-        input.value = phone.name;
-        input.setAttribute("aria-label", `New name for ${phone.name}`);
-        input.addEventListener("keydown", (event) => {
-          if (event.key === "Enter") phoneAction("rename_phone", { id: phone.id, name: input.value });
-          if (event.key === "Escape") { renamingPhone = null; refreshPhones(); }
-        });
-        input.addEventListener("blur", () => phoneAction("rename_phone", { id: phone.id, name: input.value }));
-        name.replaceWith(input);
-        input.focus();
-        input.select();
-      }),
-      button("Disconnect", "", () => phoneAction("disconnect_phone", { id: phone.id })),
-      button("Forget", "danger", () => phoneAction("forget_phone", { id: phone.id })),
-    );
-    item.append(dot, who, actions);
-    return item;
-  }));
 }
 
 const sendEnter = byId("send-enter");
@@ -287,8 +454,6 @@ window.addEventListener("focus", () => {
 refreshAccessibility();
 syncStartAtLogin();
 
-window.addEventListener("focus", refreshHarnesses);
-refreshHarnesses();
 refreshPhones();
 setInterval(() => {
   if (!document.hidden) {

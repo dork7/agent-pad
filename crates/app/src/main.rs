@@ -161,6 +161,7 @@ fn watch_tray_accessibility(
 
 fn main() -> tauri::Result<()> {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .plugin(
             tauri_plugin_autostart::Builder::new()
                 .app_name("Skills Pad")
@@ -219,6 +220,19 @@ fn main() -> tauri::Result<()> {
             commands::sharing_status,
             commands::set_sharing_address_override,
             commands::sharing_address,
+            commands::sharing_address_override,
+            commands::list_chips,
+            commands::set_phone_view,
+            commands::add_chip_to_phone,
+            commands::remove_chip_from_phone,
+            commands::list_directories,
+            commands::add_directory,
+            commands::remove_directory,
+            commands::add_custom_harness,
+            commands::remove_custom_harness,
+            commands::list_templates,
+            commands::set_template,
+            commands::reset_template,
             commands::settings,
             commands::set_send_enter,
             commands::list_phones,

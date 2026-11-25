@@ -74,7 +74,7 @@ main {
   background: var(--surface);
 }
 
-h2, label { margin: 0; font-size: 15px; font-weight: 650; }
+h2, h3, label { margin: 0; font-size: 15px; font-weight: 650; }
 p { margin: 6px 0 0; }
 .muted { color: var(--muted); }
 .error { color: var(--danger); }
@@ -83,7 +83,7 @@ p { margin: 6px 0 0; }
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin: 10px 0 0;
+  margin: 10px 0 14px;
   padding: 0;
   list-style: none;
 }
@@ -98,11 +98,28 @@ p { margin: 6px 0 0; }
   background: var(--surface-2);
   font-weight: 600;
   font-size: 12.5px;
+  overflow-wrap: anywhere;
+  user-select: none;
 }
 
-.count { color: var(--muted); font-weight: 500; font-variant-numeric: tabular-nums; }
+.chip[draggable="true"] { cursor: grab; }
+.chip[draggable="true"]:active { cursor: grabbing; }
+.chip.dir { font-family: ui-monospace, Menlo, monospace; font-weight: 500; }
+.chip .remove-chip {
+  padding: 0;
+  min-width: 18px;
+  min-height: 18px;
+  justify-content: center;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1;
+}
+.chip .remove-chip:hover { color: var(--danger); background: var(--surface); }
 
-.btn, input {
+.btn, input, select {
   color: inherit;
   background: var(--surface);
   border: 1px solid var(--line);
@@ -149,16 +166,58 @@ p { margin: 6px 0 0; }
   text-align: left;
 }
 
-.phones { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
-.phone { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line);
-  border-radius: 10px; background: var(--bg); }
-.phone .who { flex: 1; min-width: 0; }
-.phone .who b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.phone .who input { width: 100%; font: inherit; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--accent);
-  background: var(--surface); color: inherit; }
-.phone .actions { display: flex; gap: 6px; flex: none; }
-.phone .dot { background: var(--muted); }
-.phone .dot.active { background: var(--working); }
+.phones {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr));
+  gap: 12px;
+}
+
+.phonecard { min-width: 0; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
+.phonecard.over { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
+.phone-head { display: flex; align-items: center; gap: 8px; }
+.phone-head .dot { flex: none; }
+.phone-head b, .phone-head input { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.phone-head input { padding: 4px 6px; }
+.phone-head .muted { font-size: 12.5px; }
+.phonecard .drop {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 6px;
+  min-height: 64px;
+  margin: 10px 0;
+  padding: 8px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+}
+.phonecard .view-note { flex-basis: 100%; font-size: 12.5px; }
+.phonecard .actions, .view-controls { display: flex; flex-wrap: wrap; gap: 6px; }
+.view-controls { flex-basis: 100%; }
+.view-controls select, #directory-harness { max-width: 100%; }
+.view-controls .btn, .view-controls select { padding: 4px 8px; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+.settings { display: grid; gap: 12px; }
+.settings fieldset { margin: 0; padding: 0; border: 0; min-width: 0; }
+.settings .form-row { flex-wrap: wrap; align-items: end; }
+.settings .field { display: grid; flex: 1 1 135px; min-width: 0; gap: 6px; font-size: 13px; }
+.settings-list { list-style: none; margin: 0; padding: 0; }
+.settings-list > li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+.settings-list form + form { border-top: 1px solid var(--line); margin-top: 10px; }
+.path { overflow-wrap: anywhere; }
+#directory-path { margin-bottom: 8px; }
 .toggle { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
 .toggle input { margin-top: 2px; }
 .toggle b, .toggle .muted { display: block; }
