@@ -4,6 +4,7 @@
 //! the shell through [`Core`] methods, the phone and hook senders over HTTP.
 
 pub mod clock;
+pub mod harness;
 pub mod paste;
 mod server;
 pub mod skills;
@@ -15,6 +16,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 pub use clock::{Clock, SystemClock};
+pub use harness::Harness;
 pub use paste::Paster;
 pub use skills::Skill;
 
@@ -66,5 +68,10 @@ impl Core {
     /// Scan for skills now. Skills are never cached: every call reads the disk.
     pub fn list_skills(&self) -> Vec<Skill> {
         skills::scan(&self.state.home)
+    }
+
+    /// Harness chips with at least one skill, rescanned on every call.
+    pub fn list_harnesses(&self) -> Vec<Harness> {
+        skills::harnesses(&skills::scan(&self.state.home))
     }
 }

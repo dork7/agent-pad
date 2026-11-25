@@ -4,12 +4,14 @@
 
 **Blocked by:** #2
 
-**Status:** ready-for-agent
+**Status:** done
 
 **GitHub:** #3
 
-- [ ] Harnesses with no skills found are not listed
-- [ ] The shared agents folder is its own chip, not attributed to a harness
-- [ ] Claude skills yield `/name` (or `/plugin:skill`) and Codex skills yield `$name`, each followed by a space
-- [ ] Harnesses without a documented typed form use the plain-text default template
-- [ ] Verified invocation forms are recorded in the registry with their doc sources
+- [x] Harnesses with no skills found are not listed
+- [x] The shared agents folder is its own chip, not attributed to a harness
+- [x] Claude skills yield `/name` (or `/plugin:skill`) and Codex skills yield `$name`, each followed by a space
+- [x] Harnesses without a documented typed form use the plain-text default template
+- [x] Verified invocation forms are recorded in the registry with their doc sources
+
+**Notes:** Verified against each harness's docs (sources are in `crates/core/src/harness.rs`). Claude `/name`, Codex `$name`, Cursor `/name`, Copilot `/name`, OpenCode `@name`. Gemini CLI has no typed form (the model activates skills itself), so it uses the plain-text default, as does the Shared chip. Codex's documented global folder is `~/.agents/skills` (the Shared chip). `~/.codex/skills` is still scanned but is only supported by user reports. The local API adds `GET /harnesses`, and every skill carries an `invocation`.

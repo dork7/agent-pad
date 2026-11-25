@@ -7,52 +7,78 @@ use std::path::{Path, PathBuf};
 
 use serde::Serialize;
 
+use crate::harness::{self, Harness, HarnessDef};
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Skill {
     /// Stable ID the phone sends back, e.g. `claude:tdd` or `claude:superpowers:brainstorming`.
     pub id: String,
-    /// Harness the skill belongs to, e.g. `claude`.
+    /// Harness (or the Shared chip) the skill belongs to, e.g. `claude`, `codex` or `shared`.
     pub harness: String,
     /// Skill name as typed in the harness, e.g. `tdd` or `superpowers:brainstorming`.
     pub name: String,
     /// First line of the description from SKILL.md, or empty.
     pub description: String,
+    /// Text pasted to trigger the skill in its harness, e.g. `/tdd ` or `$tdd `.
+    /// Always ends in a single space.
+    pub invocation: String,
 }
 
-/// All skills found under `home`, sorted by harness then name.
+/// All skills found under `home`, sorted by harness (registry order) then name.
+/// A skill found twice under the same ID (e.g. in two folders of one harness) appears once.
 pub fn scan(home: &Path) -> Vec<Skill> {
-    let mut skills = scan_claude(home);
-    skills.sort_by(|a, b| (&a.harness, &a.name).cmp(&(&b.harness, &b.name)));
+    let mut skills = Vec::new();
+    for def in harness::REGISTRY {
+        for dir in def.skill_dirs {
+            for (dir_name, skill_md) in skill_files(&home.join(dir)) {
+                skills.push(make_skill(def, None, &dir_name, &skill_md));
+            }
+        }
+        if def.id == "claude" {
+            skills.extend(scan_claude_plugins(home, def));
+        }
+    }
+    let order = |id: &str| harness::REGISTRY.iter().position(|h| h.id == id);
+    skills.sort_by(|a, b| (order(&a.harness), &a.name).cmp(&(order(&b.harness), &b.name)));
     skills.dedup_by(|a, b| a.id == b.id);
     skills
 }
 
-/// Claude Code: global skills in `~/.claude/skills/<skill>/SKILL.md`, and plugin skills in
+/// Harness chips: one per registry entry with at least one skill, in registry order.
+pub fn harnesses(skills: &[Skill]) -> Vec<Harness> {
+    harness::REGISTRY
+        .iter()
+        .filter_map(|def| {
+            let skill_count = skills.iter().filter(|s| s.harness == def.id).count();
+            (skill_count > 0).then(|| Harness {
+                id: def.id.into(),
+                name: def.name.into(),
+                skill_count,
+            })
+        })
+        .collect()
+}
+
+/// Claude Code plugin skills in
 /// `~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/skills/<skill>/SKILL.md`,
-/// where only the newest version of each plugin counts.
-fn scan_claude(home: &Path) -> Vec<Skill> {
-    let claude = home.join(".claude");
+/// where only the newest version of each plugin counts. Named `<plugin>:<skill>`.
+fn scan_claude_plugins(home: &Path, def: &HarnessDef) -> Vec<Skill> {
     let mut skills = Vec::new();
-
-    for (dir_name, skill_md) in skill_files(&claude.join("skills")) {
-        skills.push(claude_skill(None, &dir_name, &skill_md));
-    }
-
-    for marketplace in subdirs(&claude.join("plugins").join("cache")) {
+    for marketplace in subdirs(&home.join(".claude/plugins/cache")) {
         for plugin in subdirs(&marketplace) {
             let Some(newest) = newest_version(&plugin) else {
                 continue;
             };
             let plugin_name = file_name(&plugin);
             for (dir_name, skill_md) in skill_files(&newest.join("skills")) {
-                skills.push(claude_skill(Some(&plugin_name), &dir_name, &skill_md));
+                skills.push(make_skill(def, Some(&plugin_name), &dir_name, &skill_md));
             }
         }
     }
     skills
 }
 
-fn claude_skill(plugin: Option<&str>, dir_name: &str, skill_md: &Path) -> Skill {
+fn make_skill(def: &HarnessDef, plugin: Option<&str>, dir_name: &str, skill_md: &Path) -> Skill {
     let front = fs::read_to_string(skill_md)
         .map(|t| parse_frontmatter(&t))
         .unwrap_or_default();
@@ -62,8 +88,9 @@ fn claude_skill(plugin: Option<&str>, dir_name: &str, skill_md: &Path) -> Skill 
         None => base,
     };
     Skill {
-        id: format!("claude:{name}"),
-        harness: "claude".into(),
+        id: format!("{}:{name}", def.id),
+        harness: def.id.into(),
+        invocation: def.invocation(&name),
         name,
         description: front.description.unwrap_or_default(),
     }
