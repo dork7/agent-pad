@@ -20,6 +20,8 @@ use serde_json::{Map, Value};
 pub struct Settings {
     /// Press Enter after every paste so a tap runs the skill. Off by default.
     pub send_enter: bool,
+    /// Known Phones, with their names and Views.
+    pub phones: Vec<crate::phones::PhoneRecord>,
 }
 
 /// The Skills Pad config folder for `home` on this OS.

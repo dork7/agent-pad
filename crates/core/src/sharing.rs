@@ -11,11 +11,15 @@ use qrcode::{render::svg, QrCode};
 use serde::Serialize;
 use tiny_http::{Header, Method, Request, Response, Server};
 
+use crate::phones::Admission;
 use crate::{server, Core, PasteError, State};
 
 const IDLE_TIMEOUT: Duration = Duration::from_secs(15 * 60);
 const IDLE_POLL_INTERVAL: Duration = Duration::from_secs(1);
 const TOKEN_COOKIE: &str = "skills_pad_token";
+const DEVICE_COOKIE: &str = "skills_pad_device";
+/// The device ID cookie lasts a year so a Phone keeps its name and View.
+const DEVICE_COOKIE_MAX_AGE: u32 = 365 * 24 * 60 * 60;
 
 /// The phone page, embedded in the binary.
 const PHONE_PAGE: &str = include_str!("phone.html");
@@ -188,14 +192,34 @@ fn handle(state: &State, mut request: Request, token: &str) -> bool {
     let from_url = query
         .split('&')
         .any(|param| param.strip_prefix("token=") == Some(token));
-    let from_cookie = request
+    let cookie = |name: &str| {
+        request
+            .headers()
+            .iter()
+            .filter(|header| header.field.equiv("Cookie"))
+            .flat_map(|header| header.value.as_str().split(';'))
+            .filter_map(|c| c.trim().split_once('='))
+            .find(|(n, _)| *n == name)
+            .map(|(_, v)| v.to_string())
+    };
+    let from_cookie = cookie(TOKEN_COOKIE).as_deref() == Some(token);
+    let device_cookie = cookie(DEVICE_COOKIE);
+    let user_agent = request
         .headers()
         .iter()
-        .filter(|header| header.field.equiv("Cookie"))
-        .flat_map(|header| header.value.as_str().split(';'))
-        .any(|cookie| cookie.trim().split_once('=') == Some((TOKEN_COOKIE, token)));
+        .find(|h| h.field.equiv("User-Agent"))
+        .map(|h| h.value.as_str().to_string())
+        .unwrap_or_default();
 
-    let authenticated = from_url || from_cookie;
+    let admission = (from_url || from_cookie)
+        .then(|| state.admit_phone(device_cookie.as_deref(), from_url, &user_agent));
+    let (authenticated, new_device) = match &admission {
+        Some(Admission::Admitted {
+            device_id,
+            new_cookie,
+        }) => (true, new_cookie.then(|| device_id.clone())),
+        _ => (false, None),
+    };
     let mut response = if authenticated {
         match (request.method(), path) {
             (Method::Get, "/") => Response::from_string(PHONE_PAGE)
@@ -214,7 +238,15 @@ fn handle(state: &State, mut request: Request, token: &str) -> bool {
             .with_status_code(401)
             .boxed()
     };
-    if from_url {
+    if let Some(device_id) = new_device {
+        response.add_header(header(
+            "Set-Cookie",
+            &format!(
+                "{DEVICE_COOKIE}={device_id}; Path=/; Max-Age={DEVICE_COOKIE_MAX_AGE}; HttpOnly; SameSite=Lax"
+            ),
+        ));
+    }
+    if from_url && authenticated {
         response.add_header(header(
             "Set-Cookie",
             &format!("{TOKEN_COOKIE}={token}; Path=/; HttpOnly; SameSite=Strict"),
