@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
 <title>Skills Pad</title>
 <style>
   :root {
@@ -17,41 +18,61 @@
     }
   }
   * { box-sizing: border-box; }
-  html, body { margin: 0; background: var(--bg); color: var(--text); -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); -webkit-tap-highlight-color: transparent;
+    overflow-x: hidden; -webkit-text-size-adjust: 100%; }
   button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
-  main { max-width: 640px; margin: 0 auto; padding: 18px 16px 40px; }
-  h1 { font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 12px; }
-  .search { width: 100%; padding: 16px; border-radius: 16px; border: 2px solid var(--line); background: var(--surface);
-    outline: none; font: inherit; font-size: 20px; color: inherit; }
-  .search:focus { border-color: var(--accent); }
-  .tabs { display: flex; gap: 8px; margin: 12px 0 6px; overflow-x: auto; scrollbar-width: none; }
-  .tabs button { flex: none; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); font-size: 13px; }
+
+  /* One-handed layout: the list scrolls above; tabs and search sit at the bottom, in thumb reach. */
+  main { max-width: 640px; margin: 0 auto; padding: max(16px, env(safe-area-inset-top)) 16px 0;
+    padding-bottom: calc(150px + env(safe-area-inset-bottom)); }
+  h1 { font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 4px; }
+  .row { display: block; width: 100%; min-height: 56px; text-align: left; padding: 12px 4px;
+    border-bottom: 1px solid var(--line); }
+  .row:active { background: var(--surface-2); }
+  .row code { display: block; font: 600 17px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--accent);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row small { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    margin-top: 3px; color: var(--muted); font-size: 14px; line-height: 1.35; overflow-wrap: anywhere; }
+  .empty { text-align: center; padding: 48px 12px; color: var(--muted); }
+
+  .dock { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; background: var(--surface);
+    border-top: 1px solid var(--line); box-shadow: 0 -6px 20px rgba(0,0,0,.08);
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); }
+  .dock > * { max-width: 640px; margin-left: auto; margin-right: auto; }
+  .tabs { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding-bottom: 10px; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tabs button { flex: none; min-height: 44px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--line);
+    font-size: 15px; font-weight: 500; }
   .tabs button[aria-selected="true"] { background: var(--text); color: var(--bg); border-color: var(--text); }
-  .tabs .n { opacity: .6; margin-left: 4px; font-variant-numeric: tabular-nums; }
-  .row { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; width: 100%; text-align: left; padding: 12px 0;
-    align-items: baseline; border-bottom: 1px solid var(--line); }
-  .row:active { opacity: .6; }
-  .row code { font: 600 15px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--accent); grid-row: span 2; }
-  .row b { font-weight: 500; font-size: 15px; overflow-wrap: anywhere; }
-  .row small { color: var(--muted); font-size: 13px; grid-column: 2; }
-  .empty { text-align: center; padding: 40px 12px; color: var(--muted); }
-  #toast { position: fixed; left: 50%; top: 16px; transform: translate(-50%, -160%); transition: transform .2s; z-index: 50;
+  .tabs .n { opacity: .6; margin-left: 6px; font-variant-numeric: tabular-nums; }
+  .search { display: block; width: 100%; min-height: 52px; padding: 0 16px; border-radius: 16px; border: 2px solid var(--line);
+    background: var(--bg); outline: none; font: inherit; font-size: 18px; color: inherit; }
+  .search:focus { border-color: var(--accent); }
+
+  #toast { position: fixed; left: 50%; top: max(16px, env(safe-area-inset-top)); transform: translate(-50%, -200%);
+    transition: transform .2s; z-index: 50; max-width: calc(100% - 32px); overflow: hidden; text-overflow: ellipsis;
     background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 999px; font-size: 14px; white-space: nowrap; }
   #toast.show { transform: translate(-50%, 0); }
   #toast.error { background: var(--error); color: #fff; }
+  #keepawake { position: fixed; width: 1px; height: 1px; opacity: 0; pointer-events: none; left: -10px; top: -10px; }
 </style>
 </head>
 <body>
 <main>
   <h1>Skills Pad</h1>
-  <input id="q" class="search" type="search" placeholder="Search skills" autocomplete="off" aria-label="Search skills">
-  <nav id="tabs" class="tabs" role="tablist" aria-label="Harnesses"></nav>
   <div id="list" role="list"></div>
 </main>
+<div class="dock">
+  <nav id="tabs" class="tabs" role="tablist" aria-label="Harnesses"></nav>
+  <input id="q" class="search" type="search" placeholder="Search skills" autocomplete="off" enterkeyhint="search" aria-label="Search skills">
+</div>
 <div id="toast" role="status" aria-live="polite"></div>
 <script>
 (() => {
-  const HEARTBEAT_MS = 60 * 1000;
+  const HEARTBEAT_MS = 30 * 1000;
+  // A 2-second, 16x16 black, silent H.264 clip. Inline because iOS only plays videos from
+  // servers that support range requests, and data URIs need none.
+  const KEEPAWAKE_MP4 = 'data:video/mp4;base64,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X21lPTEgdHJlbGxpcz0xIDh4OGRjdD0wIGNxbT0wIGRlYWR6b25lPTIxLDExIGZhc3RfcHNraXA9MSBjaHJvbWFfcXBfb2Zmc2V0PS0yIHRocmVhZHM9MSBsb29rYWhlYWRfdGhyZWFkcz0xIHNsaWNlZF90aHJlYWRzPTAgbnI9MCBkZWNpbWF0ZT0xIGludGVybGFjZWQ9MCBibHVyYXlfY29tcGF0PTAgY29uc3RyYWluZWRfaW50cmE9MCBiZnJhbWVzPTAgd2VpZ2h0cD0wIGtleWludD0yNTAga2V5aW50X21pbj0xIHNjZW5lY3V0PTQwIGludHJhX3JlZnJlc2g9MCByY19sb29rYWhlYWQ9NDAgcmM9Y3JmIG1idHJlZT0xIGNyZj0yMy4wIHFjb21wPTAuNjAgcXBtaW49MCBxcG1heD02OSBxcHN0ZXA9NCBpcF9yYXRpbz0xLjQwIGFxPTE6MS4wMACAAAAADmWIhAW///8PRQABT3+AARggBwEYIAcBGCAHARggBwEYIAcBGCAHARggBwEYIAcAAAAGQZo4CvqAARggBwEYIAcBGCAHARggBwEYIAcBGCAHARggBwEYIAc=';
   let harnesses = [], skills = [], active = null, toastTimer = null;
   const $ = id => document.getElementById(id);
   const el = (tag, props = {}, ...children) => {
@@ -59,6 +80,8 @@
     node.append(...children);
     return node;
   };
+  // Android vibrates; iOS Safari has no vibration API, so this does nothing there.
+  const buzz = ms => { try { navigator.vibrate && navigator.vibrate(ms); } catch (e) {} };
 
   function toast(text, isError) {
     const t = $('toast');
@@ -76,6 +99,7 @@
       harnesses = await h.json();
       skills = await s.json();
     } catch (e) {
+      $('tabs').replaceChildren();
       $('list').replaceChildren(el('p', { className: 'empty', textContent: e.message === 'expired'
         ? 'Sharing has stopped. Scan the QR code in the Pad again.'
         : 'Could not reach the computer. Check that sharing is still on.' }));
@@ -88,7 +112,7 @@
   function render() {
     $('tabs').replaceChildren(...harnesses.map(h => el('button', {
       role: 'tab', ariaSelected: String(h.id === active),
-      onclick: () => { active = h.id; render(); },
+      onclick: () => { active = h.id; buzz(5); render(); window.scrollTo(0, 0); },
     }, h.name, el('span', { className: 'n', textContent: h.skill_count }))));
 
     if (!harnesses.length) {
@@ -104,33 +128,69 @@
     }
     $('list').replaceChildren(...shown.map(s => el('button', {
       className: 'row', role: 'listitem', onclick: () => paste(s),
+      ariaLabel: s.name + (s.description ? ', ' + s.description : ''),
     }, el('code', { textContent: s.invocation.trim() }),
-       el('b', { textContent: s.name }),
-       el('small', { textContent: s.description }))));
+       el('small', { textContent: s.description || s.name }))));
   }
 
   async function paste(skill) {
+    buzz(12);
     try {
       const r = await fetch('/paste', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: skill.id }),
       });
       if (r.ok) toast('Pasted ' + skill.invocation.trim());
-      else if (r.status === 404) { toast('That skill is gone', true); load(); }
-      else if (r.status === 401) toast('Sharing has stopped', true);
-      else toast('Paste failed', true);
+      else if (r.status === 404) { buzz([30, 40, 30]); toast('That skill is gone', true); load(); }
+      else if (r.status === 401) { buzz([30, 40, 30]); toast('Sharing has stopped', true); }
+      else { buzz([30, 40, 30]); toast('Paste failed', true); }
     } catch (e) {
+      buzz([30, 40, 30]);
       toast('Could not reach the computer', true);
     }
   }
 
+  // Keep the screen awake while the page is visible. The Screen Wake Lock API needs a secure
+  // context, which plain LAN HTTP is not, so the usual path is a muted, looping, hidden video.
+  let wakeLock = null, video = null;
+  async function keepAwake() {
+    if (document.hidden) return;
+    if ('wakeLock' in navigator && window.isSecureContext) {
+      if (wakeLock) return;
+      try {
+        wakeLock = await navigator.wakeLock.request('screen');
+        wakeLock.addEventListener('release', () => { wakeLock = null; });
+        return;
+      } catch (e) { /* fall back to the video */ }
+    }
+    if (!video) {
+      video = el('video', { id: 'keepawake', muted: true, loop: true, playsInline: true, src: KEEPAWAKE_MP4 });
+      video.setAttribute('muted', '');
+      video.setAttribute('playsinline', '');
+      video.setAttribute('aria-hidden', 'true');
+      document.body.append(video);
+    }
+    if (video.paused) video.play().catch(() => { /* needs a tap first on some phones */ });
+  }
+  function releaseAwake() {
+    if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
+    if (video) video.pause();
+  }
+
   const heartbeat = () => { if (!document.hidden) fetch('/heartbeat', { method: 'POST' }).catch(() => {}); };
   setInterval(heartbeat, HEARTBEAT_MS);
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) { heartbeat(); load(); } });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { releaseAwake(); return; }
+    heartbeat(); keepAwake(); load();
+  });
+  window.addEventListener('pagehide', releaseAwake);
+  // Playback may need a user gesture (iOS): retry on every tap until it is running.
+  document.addEventListener('pointerdown', keepAwake, { passive: true });
   $('q').addEventListener('input', render);
 
   // Drop the token from the address bar; the cookie carries it from now on.
   if (location.search.includes('token=')) history.replaceState(null, '', '/');
+  keepAwake();
   load();
 })();
 </script>
