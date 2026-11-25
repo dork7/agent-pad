@@ -5,10 +5,16 @@ use std::time::{Duration, Instant};
 
 use crate::{Clock, Paster};
 
-/// Records every paste instead of touching the clipboard or keyboard.
+/// Records every paste and key press instead of touching the clipboard or keyboard.
 #[derive(Default)]
 pub struct RecordingPaster {
-    pasted: Mutex<Vec<String>>,
+    events: Mutex<Vec<Recorded>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Recorded {
+    Paste(String),
+    Enter,
 }
 
 impl RecordingPaster {
@@ -16,15 +22,35 @@ impl RecordingPaster {
         Self::default()
     }
 
-    /// Every text pasted so far, in order.
+    /// Every text pasted so far, in order (key presses left out).
     pub fn pasted(&self) -> Vec<String> {
-        self.pasted.lock().unwrap().clone()
+        self.events
+            .lock()
+            .unwrap()
+            .iter()
+            .filter_map(|e| match e {
+                Recorded::Paste(text) => Some(text.clone()),
+                Recorded::Enter => None,
+            })
+            .collect()
+    }
+
+    /// Every paste and Enter press so far, in order.
+    pub fn events(&self) -> Vec<Recorded> {
+        self.events.lock().unwrap().clone()
     }
 }
 
 impl Paster for RecordingPaster {
     fn paste(&self, text: &str) {
-        self.pasted.lock().unwrap().push(text.to_string());
+        self.events
+            .lock()
+            .unwrap()
+            .push(Recorded::Paste(text.to_string()));
+    }
+
+    fn press_enter(&self) {
+        self.events.lock().unwrap().push(Recorded::Enter);
     }
 }
 

@@ -4,11 +4,13 @@
 
 **Blocked by:** #5
 
-**Status:** ready-for-agent
+**Status:** in-progress (Core done; Pad toggle pending the shell from ticket 05)
 
 **GitHub:** #16
 
-- [ ] With the toggle off, behavior is unchanged: only the Invocation and trailing space are pasted
-- [ ] With it on, Enter is sent after the paste on macOS and Windows
-- [ ] The toggle persists across restarts and applies to the next tap without restarting
-- [ ] Serialized pastes from several phones each get their own Enter, in order (tested with the recording Paster)
+- [x] With the toggle off, behavior is unchanged: only the Invocation and trailing space are pasted
+- [x] With it on, Enter is sent after the paste on macOS and Windows
+- [x] The toggle persists across restarts and applies to the next tap without restarting
+- [x] Serialized pastes from several phones each get their own Enter, in order (tested with the recording Paster)
+
+**Notes:** The Core has `Core::settings()` and `Core::set_send_enter(bool)`, saved to `settings.json` in the OS config folder (`settings::config_dir`). Unknown fields in that file are kept, so the shell can store its own settings, such as the hotkey, in the same file. `Paster::press_enter` is implemented by `SystemPaster` (enigo Return) and recorded by `RecordingPaster` as `Recorded::Enter`. The Enter on Windows is untested on real hardware.

@@ -7,6 +7,7 @@ pub mod clock;
 pub mod harness;
 pub mod paste;
 mod server;
+pub mod settings;
 mod sharing;
 pub mod skills;
 pub mod testing;
@@ -14,11 +15,12 @@ pub mod testing;
 use std::io;
 use std::net::SocketAddr;
 use std::path::PathBuf;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 
 pub use clock::{Clock, SystemClock};
 pub use harness::Harness;
 pub use paste::{PadWindow, Paster, SystemPaster};
+pub use settings::Settings;
 pub use sharing::SharingInfo;
 pub use skills::Skill;
 
@@ -44,6 +46,7 @@ pub(crate) struct State {
     pub clock: Arc<dyn Clock>,
     pub pad: Arc<RwLock<Arc<dyn PadWindow>>>,
     pub pastes: paste::PasteQueue,
+    pub settings: Mutex<Settings>,
 }
 
 /// Why a paste request was refused.
@@ -61,7 +64,8 @@ impl State {
             .into_iter()
             .find(|s| s.id == skill_id)
             .ok_or(PasteError::UnknownSkill)?;
-        self.pastes.paste(skill.invocation.clone());
+        let enter = self.settings.lock().unwrap().send_enter;
+        self.pastes.paste(skill.invocation.clone(), enter);
         Ok(skill)
     }
 }
@@ -70,7 +74,9 @@ impl Core {
     pub fn start(config: CoreConfig) -> io::Result<Core> {
         let pad: Arc<RwLock<Arc<dyn PadWindow>>> =
             Arc::new(RwLock::new(Arc::new(paste::NoPadWindow)));
+        let settings = Mutex::new(settings::load(&config.home));
         let state = Arc::new(State {
+            settings,
             home: config.home,
             clock: config.clock,
             pastes: paste::PasteQueue::start(config.paster, pad.clone()),
@@ -113,5 +119,17 @@ impl Core {
     /// does. Returns the pasted skill.
     pub fn paste_skill(&self, skill_id: &str) -> Result<Skill, PasteError> {
         self.state.paste_skill(skill_id)
+    }
+
+    /// Current settings.
+    pub fn settings(&self) -> Settings {
+        self.state.settings.lock().unwrap().clone()
+    }
+
+    /// Turns "Send Enter after paste" on or off. Applies to the next paste and is saved.
+    pub fn set_send_enter(&self, on: bool) -> io::Result<()> {
+        let mut settings = self.state.settings.lock().unwrap();
+        settings.send_enter = on;
+        settings::save(&self.state.home, &settings)
     }
 }

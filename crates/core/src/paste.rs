@@ -13,6 +13,9 @@ use std::time::Duration;
 /// The real implementation is [`SystemPaster`]; tests use [`crate::testing::RecordingPaster`].
 pub trait Paster: Send + Sync {
     fn paste(&self, text: &str);
+
+    /// Presses Enter in the focused app. Used after a paste when "Send Enter" is on.
+    fn press_enter(&self) {}
 }
 
 /// The Pad window as seen by the paste flow. The shell implements it so the Pad gets out of
@@ -36,6 +39,7 @@ const FOCUS_RETURN_DELAY: Duration = Duration::from_millis(150);
 
 struct Job {
     text: String,
+    enter: bool,
     done: Sender<()>,
 }
 
@@ -57,6 +61,9 @@ impl PasteQueue {
                         thread::sleep(FOCUS_RETURN_DELAY);
                     }
                     paster.paste(&job.text);
+                    if job.enter {
+                        paster.press_enter();
+                    }
                     let _ = job.done.send(());
                 }
             })
@@ -66,10 +73,10 @@ impl PasteQueue {
         }
     }
 
-    /// Queues `text` and blocks until it has been pasted.
-    pub fn paste(&self, text: String) {
+    /// Queues `text` (followed by Enter if `enter`) and blocks until it has been pasted.
+    pub fn paste(&self, text: String, enter: bool) {
         let (done, wait) = mpsc::channel();
-        let sent = self.jobs.lock().unwrap().send(Job { text, done });
+        let sent = self.jobs.lock().unwrap().send(Job { text, enter, done });
         if sent.is_ok() {
             let _ = wait.recv();
         }
@@ -90,6 +97,19 @@ impl Paster for SystemPaster {
     fn paste(&self, text: &str) {
         if let Err(err) = system_paste(text) {
             eprintln!("skills-pad: paste failed: {err}");
+        }
+    }
+
+    fn press_enter(&self) {
+        use enigo::{Direction, Enigo, Key, Keyboard, Settings};
+        let pressed = Enigo::new(&Settings::default())
+            .map_err(|e| e.to_string())
+            .and_then(|mut e| {
+                e.key(Key::Return, Direction::Click)
+                    .map_err(|e| e.to_string())
+            });
+        if let Err(err) = pressed {
+            eprintln!("skills-pad: Enter failed: {err}");
         }
     }
 }
