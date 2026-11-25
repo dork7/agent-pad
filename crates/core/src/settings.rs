@@ -30,6 +30,8 @@ pub struct Settings {
     pub templates: std::collections::BTreeMap<String, String>,
     /// The network address to share on instead of the automatically chosen one.
     pub network_override: Option<std::net::IpAddr>,
+    /// Project-relative ticket pattern. None uses the Core default.
+    pub ticket_pattern: Option<String>,
 }
 
 /// The Skills Pad config folder for `home` on this OS.
@@ -90,6 +92,7 @@ pub enum SettingsError {
     TemplateWithoutName,
     /// Skill Directories are still assigned to this Harness.
     HarnessInUse,
+    InvalidTicketPattern,
     /// Saving the settings file failed.
     Io(String),
 }
@@ -104,6 +107,9 @@ impl std::fmt::Display for SettingsError {
             Self::EmptyName => "Give the harness a name.",
             Self::TemplateWithoutName => "The template must contain {name}.",
             Self::HarnessInUse => "Move or remove its skill directories first.",
+            Self::InvalidTicketPattern => {
+                "Choose a project-relative ticket pattern without parent components."
+            }
             Self::Io(e) => return write!(f, "Could not save settings: {e}"),
         };
         f.write_str(text)

@@ -5,9 +5,11 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::thread::JoinHandle;
 
+use percent_encoding::percent_decode_str;
+use serde_json::json;
 use tiny_http::{Header, Method, Request, Response, Server};
 
-use crate::{hooks, State};
+use crate::{hooks, State, TicketError};
 
 pub(crate) struct Running {
     pub addr: SocketAddr,
@@ -52,6 +54,8 @@ fn handle(state: &State, mut request: Request) {
         (Method::Get, "/skills") => skills_response(state),
         (Method::Get, "/harnesses") => harnesses_response(state),
         (Method::Get, "/sessions") => sessions_response(state),
+        (Method::Get, path) if path.starts_with("/sessions/") => tickets_response(state, path)
+            .with_header(Header::from_bytes("Cache-Control", "no-store").expect("valid header")),
         (Method::Post, "/hooks/claude") => hooks::receive(state, &mut request),
         _ => Response::from_string("not found").with_status_code(404),
     };
@@ -68,6 +72,53 @@ pub(crate) fn harnesses_response(state: &State) -> Response<io::Cursor<Vec<u8>>>
 
 pub(crate) fn sessions_response(state: &State) -> Response<io::Cursor<Vec<u8>>> {
     json(&state.list_sessions())
+}
+
+pub(crate) fn tickets_response(state: &State, path: &str) -> Response<io::Cursor<Vec<u8>>> {
+    let not_found = || Response::from_string("not found").with_status_code(404);
+    let Some((session, suffix)) = path
+        .strip_prefix("/sessions/")
+        .and_then(|path| path.split_once('/'))
+    else {
+        return not_found();
+    };
+    let Some(session_id) = decode_segment(session) else {
+        return not_found();
+    };
+    let result = if suffix == "tickets" {
+        state
+            .pending_tickets(&session_id)
+            .map(|tickets| json(&tickets))
+    } else if let Some(ticket_id) = suffix.strip_prefix("tickets/").and_then(decode_segment) {
+        state
+            .ticket(&session_id, &ticket_id)
+            .map(|ticket| json(&ticket))
+    } else {
+        return not_found();
+    };
+    match result {
+        Ok(response) => response,
+        Err(TicketError::UnknownSession) => json_status(404, &json!({"error": "unknown session"})),
+        Err(TicketError::UnknownTicket) => json_status(404, &json!({"error": "unknown ticket"})),
+        Err(TicketError::InvalidPattern | TicketError::Io(_)) => {
+            json_status(500, &json!({"error": "could not read tickets"}))
+        }
+    }
+}
+
+fn decode_segment(segment: &str) -> Option<std::borrow::Cow<'_, str>> {
+    if segment.is_empty()
+        || segment.contains('/')
+        || segment.split('%').skip(1).any(|value| {
+            !value
+                .as_bytes()
+                .get(..2)
+                .is_some_and(|bytes| bytes.iter().all(u8::is_ascii_hexdigit))
+        })
+    {
+        return None;
+    }
+    percent_decode_str(segment).decode_utf8().ok()
 }
 
 pub(crate) fn json_status<T: serde::Serialize>(

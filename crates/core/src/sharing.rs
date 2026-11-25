@@ -242,6 +242,10 @@ fn handle(state: &State, mut request: Request, token: &str) -> bool {
             (Method::Get, "/skills") => server::skills_response(state).boxed(),
             (Method::Get, "/harnesses") => server::harnesses_response(state).boxed(),
             (Method::Get, "/sessions") => server::sessions_response(state).boxed(),
+            (Method::Get, path) if path.starts_with("/sessions/") => {
+                // TODO: Enforce this Phone's View for ticket routes when sessions are filtered.
+                server::tickets_response(state, path).boxed()
+            }
             (Method::Post, "/paste") => paste(state, &mut request).boxed(),
             (Method::Post, "/heartbeat") => Response::empty(204).boxed(),
             _ => Response::from_string("not found")

@@ -14,6 +14,7 @@ pub mod settings;
 mod sharing;
 pub mod skills;
 pub mod testing;
+mod tickets;
 
 use std::io;
 use std::net::SocketAddr;
@@ -29,6 +30,7 @@ pub use sessions::{Session, SessionStatus, CLAUDE_HOOKS_RESTART_NOTICE};
 pub use settings::{Settings, SettingsError};
 pub use sharing::SharingInfo;
 pub use skills::{Directory, Skill};
+pub use tickets::{BlockedBy, Ticket, TicketError, TicketSummary, DEFAULT_TICKET_PATTERN};
 
 /// Everything the Core needs from the outside world. Tests swap in a temp home,
 /// a [`testing::RecordingPaster`] and a [`testing::FakeClock`].

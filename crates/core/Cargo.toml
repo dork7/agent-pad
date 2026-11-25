@@ -7,8 +7,10 @@ description = "Headless core of Skills Pad: skill discovery, the HTTP API, pasti
 
 [dependencies]
 arboard = "3.7.0"
+cap-std = "4"
 enigo = "0.6.1"
 getrandom = "0.4"
+percent-encoding = "2"
 qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
