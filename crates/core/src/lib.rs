@@ -8,6 +8,7 @@ pub mod harness;
 mod hooks;
 pub mod paste;
 pub mod phones;
+pub mod profiles;
 mod server;
 mod sessions;
 pub mod settings;
@@ -26,6 +27,7 @@ pub use harness::{CustomHarness, Harness};
 pub use hooks::ClaudeHooksPreview;
 pub use paste::{PadWindow, Paster, SystemPaster};
 pub use phones::{Phone, PhoneError};
+pub use profiles::{Profile, ProfileError};
 pub use sessions::{Session, SessionStatus, CLAUDE_HOOKS_RESTART_NOTICE};
 pub use settings::{Settings, SettingsError};
 pub use sharing::SharingInfo;
@@ -353,5 +355,29 @@ impl Core {
     /// Removes a chip from a Phone's View (its ×).
     pub fn remove_chip_from_phone(&self, id: &str, chip: &str) -> Result<(), PhoneError> {
         self.state.remove_chip(id, chip)
+    }
+
+    /// Saved Profiles and the active one.
+    pub fn list_profiles(&self) -> (Vec<Profile>, Option<String>) {
+        let settings = self.state.settings.lock().unwrap();
+        (settings.profiles.clone(), settings.active_profile.clone())
+    }
+
+    /// Saves every known Phone's View under `name`, replacing a Profile with that name.
+    pub fn save_profile(&self, name: &str) -> Result<(), ProfileError> {
+        self.state.save_profile(name)
+    }
+
+    /// Applies a Profile's Views to the Phones it knows, live.
+    pub fn switch_profile(&self, name: &str) -> Result<(), ProfileError> {
+        self.state.switch_profile(name)
+    }
+
+    pub fn rename_profile(&self, name: &str, new_name: &str) -> Result<(), ProfileError> {
+        self.state.rename_profile(name, new_name)
+    }
+
+    pub fn delete_profile(&self, name: &str) -> Result<(), ProfileError> {
+        self.state.delete_profile(name)
     }
 }
