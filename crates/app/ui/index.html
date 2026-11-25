@@ -6,6 +6,7 @@
   <title>Skills Pad</title>
   <link rel="stylesheet" href="pad.css">
   <script src="pad.js" defer></script>
+  <script src="settings.js" defer></script>
 </head>
 <body>
   <header class="toolbar">
@@ -41,49 +42,117 @@
       <p id="sharing-url" class="url"></p>
     </section>
 
-    <section class="card" aria-labelledby="harness-heading">
-      <h2 id="harness-heading">Harnesses</h2>
-      <ul id="harnesses" class="palette" aria-label="Harness skill counts"></ul>
-      <p id="harness-message" class="muted" role="status">Looking for skills…</p>
-    </section>
-
     <section class="card" aria-labelledby="phones-heading">
-      <h2 id="phones-heading">Phones</h2>
+      <h2 id="phones-heading" tabindex="-1">Phones</h2>
+      <p class="muted">Drag a harness or folder onto a phone to choose what it sees. Changes apply live.</p>
+      <ul id="chip-palette" class="palette" aria-label="Available chips"></ul>
+      <p id="chip-message" class="muted" role="status">Looking for chips…</p>
       <ul id="phones" class="phones"></ul>
       <p id="phones-message" class="muted" role="status">No phones yet. Choose Open on phone and scan the QR code.</p>
+      <p id="phones-status" class="visually-hidden" role="status"></p>
       <p id="phones-error" class="error" role="alert" hidden></p>
     </section>
 
-    <section class="card">
-      <label class="toggle">
-        <input id="send-enter" type="checkbox" disabled>
-        <span>
-          <b>Send Enter after paste</b>
-          <span class="muted">A tap runs the skill instead of only typing it.</span>
-        </span>
-      </label>
-    </section>
+    <section class="settings" aria-labelledby="settings-heading">
+      <h2 id="settings-heading">Settings</h2>
+      <p id="settings-error" class="error" role="alert" hidden></p>
 
-    <section class="card">
-      <label class="toggle">
-        <input id="start-at-login" type="checkbox" aria-describedby="start-at-login-error" disabled>
-        <b>Start at login</b>
-      </label>
-      <p id="start-at-login-error" class="error" role="alert" hidden></p>
-    </section>
+      <section class="card" aria-labelledby="directories-heading">
+        <h3 id="directories-heading">Skill Directories</h3>
+        <p id="directories-empty" class="muted" hidden>No skill directories added.</p>
+        <ul id="directories" class="settings-list"></ul>
+        <form id="directory-form">
+          <div class="form-row">
+            <button id="pick-directory" class="btn" type="button" disabled>Add folder…</button>
+          </div>
+          <div id="directory-assignment" hidden>
+            <p id="directory-path" class="path"></p>
+            <label for="directory-harness">Harness</label>
+            <div class="form-row">
+              <select id="directory-harness" aria-describedby="directory-path" required></select>
+              <button class="btn" type="submit">Add directory</button>
+              <button id="cancel-directory" class="btn" type="button">Cancel</button>
+            </div>
+          </div>
+        </form>
+        <p id="directories-error" class="error" role="alert" hidden></p>
+      </section>
 
-    <section class="card">
-      <form id="hotkey-form">
-        <label for="hotkey">Pad hotkey</label>
-        <p id="hotkey-help" class="muted">Enter a shortcut with + between keys to show or hide the Pad.</p>
-        <div class="form-row">
-          <input id="hotkey" type="text" autocomplete="off" autocapitalize="off" spellcheck="false"
-                 aria-describedby="hotkey-help hotkey-error" required disabled>
-          <button id="save-hotkey" class="btn" type="submit" disabled>Save hotkey</button>
-        </div>
-        <p id="hotkey-error" class="error" role="alert" hidden></p>
-        <p id="hotkey-status" class="muted" role="status" hidden></p>
-      </form>
+      <section class="card" aria-labelledby="custom-heading">
+        <h3 id="custom-heading">Custom harnesses</h3>
+        <p id="custom-empty" class="muted" hidden>No custom harnesses added.</p>
+        <ul id="custom-harnesses" class="settings-list"></ul>
+        <form id="custom-form">
+          <fieldset disabled>
+            <div class="form-row">
+              <label class="field">Name <input id="custom-name" type="text" required></label>
+              <label class="field">Invocation template
+                <input id="custom-template" type="text" placeholder="/{name}" aria-describedby="template-hint"
+                       autocomplete="off" spellcheck="false" required>
+              </label>
+              <button class="btn" type="submit">Add harness</button>
+            </div>
+          </fieldset>
+        </form>
+        <p id="custom-error" class="error" role="alert" hidden></p>
+      </section>
+
+      <section class="card" aria-labelledby="templates-heading">
+        <h3 id="templates-heading">Invocation templates</h3>
+        <p id="template-hint" class="muted">Include <code>{name}</code> where the skill name should appear.</p>
+        <div id="templates" class="settings-list"></div>
+      </section>
+
+      <section class="card" aria-labelledby="network-heading">
+        <h3 id="network-heading">Network address override</h3>
+        <p id="network-current" class="muted" role="status">Checking the sharing address…</p>
+        <p id="network-hint" class="muted">Changes apply the next time you start sharing.</p>
+        <form id="network-form">
+          <fieldset disabled>
+            <div class="form-row">
+              <label class="field">IP address
+                <input id="network-address" type="text" placeholder="192.168.1.10" autocomplete="off"
+                       autocapitalize="off" spellcheck="false" aria-describedby="network-hint network-error" required>
+              </label>
+              <button class="btn" type="submit">Save</button>
+              <button id="clear-network" class="btn" type="button">Clear</button>
+            </div>
+          </fieldset>
+        </form>
+        <p id="network-error" class="error" role="alert" hidden></p>
+      </section>
+
+      <section class="card">
+        <label class="toggle">
+          <input id="send-enter" type="checkbox" disabled>
+          <span>
+            <b>Send Enter after paste</b>
+            <span class="muted">A tap runs the skill instead of only typing it.</span>
+          </span>
+        </label>
+      </section>
+
+      <section class="card">
+        <label class="toggle">
+          <input id="start-at-login" type="checkbox" aria-describedby="start-at-login-error" disabled>
+          <b>Start at login</b>
+        </label>
+        <p id="start-at-login-error" class="error" role="alert" hidden></p>
+      </section>
+
+      <section class="card">
+        <form id="hotkey-form">
+          <label for="hotkey">Pad hotkey</label>
+          <p id="hotkey-help" class="muted">Enter a shortcut with + between keys to show or hide the Pad.</p>
+          <div class="form-row">
+            <input id="hotkey" type="text" autocomplete="off" autocapitalize="off" spellcheck="false"
+                   aria-describedby="hotkey-help hotkey-error" required disabled>
+            <button id="save-hotkey" class="btn" type="submit" disabled>Save hotkey</button>
+          </div>
+          <p id="hotkey-error" class="error" role="alert" hidden></p>
+          <p id="hotkey-status" class="muted" role="status" hidden></p>
+        </form>
+      </section>
     </section>
   </main>
 </body>
