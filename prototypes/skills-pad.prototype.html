@@ -1,0 +1,676 @@
+<!doctype html>
+<!--
+  PROTOTYPE — throwaway. Not production code.
+  Question: what should Skills Pad look like on the phone and on the desktop?
+  Views (switch with the yellow bar, ← / →, or ?view=phone|desktop):
+    phone   — the chosen variant E: skill palette + bottom agent sheet, notifications, rotate
+    desktop — the Pad window: Open on phone (QR), phones with drag-and-drop View chips, profiles, agents, activity
+  All state is in memory and shared between the two views (paste on the phone → shows in the Pad's activity).
+  Run: open this file in a browser. To scan the QR with a real phone, serve it on the LAN:
+    python3 -m http.server -d prototypes --bind 0.0.0.0 8000
+  then open http://<mac-lan-ip>:8000/skills-pad.prototype.html?view=desktop on the Mac and scan.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Skills Pad prototype</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  :root {
+    --bg: #f6f6f4; --surface: #ffffff; --surface-2: #ececea; --text: #1b1b1a; --muted: #6b6b66;
+    --line: #dcdcd7; --accent: #3b5bdb; --accent-text: #ffffff; --wall: #c9cfd6;
+    --working: #2f9e44; --needs: #e8590c; --idle: #868e96; --stuck: #c92a2a; --ended: #adb5bd;
+    --switcher-h: 64px; --frame-w: 420px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #121212; --surface: #1d1d1c; --surface-2: #2a2a28; --text: #ececea; --muted: #9a9a94;
+      --line: #33332f; --accent: #748ffc; --accent-text: #0d0d0d; --wall: #2b2f36;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: #888; }
+  body { color: var(--text); -webkit-tap-highlight-color: transparent; }
+  body.desk { background: var(--wall); }
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+  input, select { font: inherit; color: inherit; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .muted { color: var(--muted); }
+  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; flex: none; }
+  .s-working { background: var(--working); } .s-needs { background: var(--needs); }
+  .s-idle { background: var(--idle); } .s-stuck { background: var(--stuck); } .s-ended { background: var(--ended); }
+  .c-working { color: var(--working); } .c-needs { color: var(--needs); }
+  .c-idle { color: var(--idle); } .c-stuck { color: var(--stuck); } .c-ended { color: var(--ended); }
+  .search { width: 100%; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); outline: none; font-size: 16px; }
+  .search:focus { border-color: var(--accent); }
+
+  /* agent (session) tags */
+  .tags { display: flex; flex-wrap: wrap; gap: 8px; }
+  .tag { flex: none; display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px 7px 10px; border-radius: 999px;
+    background: var(--surface); border: 1px solid var(--line); font-size: 13.5px; font-weight: 600; white-space: nowrap; }
+  .tag:active { transform: scale(.96); background: var(--surface-2); }
+  .tag .h { font-weight: 500; font-size: 11px; padding: 2px 6px; border-radius: 6px; background: var(--surface-2); color: var(--muted); }
+  .tag .t { font-weight: 400; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .tag.st-needs { border-color: var(--needs); } .tag.st-stuck { border-color: var(--stuck); }
+  .tag.st-ended { opacity: .5; }
+  .tags.big .tag { padding: 12px 16px 12px 14px; font-size: 16px; }
+  .tags.big .dot { width: 11px; height: 11px; }
+  .flash { animation: flash 1.2s ease-out 2; }
+  @keyframes flash { 0% { box-shadow: 0 0 0 0 var(--accent); } 100% { box-shadow: 0 0 0 8px transparent; } }
+
+  /* toast */
+  #toast { position: fixed; left: 50%; top: 16px; transform: translate(-50%, -140%); transition: transform .2s; z-index: 50;
+    background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 999px; font-size: 14px; white-space: nowrap; }
+  #toast.show { transform: translate(-50%, 0); }
+
+  /* mimicked notifications: phone banner at the top; on desktop, a macOS-style card at the top right */
+  #notif { position: fixed; left: 50%; top: 10px; transform: translate(-50%, -130%); transition: transform .28s cubic-bezier(.2,.9,.3,1.2);
+    width: min(396px, calc(100% - 24px)); z-index: 60; display: flex; gap: 12px; align-items: center; padding: 12px 14px; text-align: left;
+    border-radius: 20px; background: color-mix(in srgb, var(--surface) 88%, transparent); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+    box-shadow: 0 8px 28px rgba(0,0,0,.25); border: 1px solid var(--line); }
+  #notif.show { transform: translate(-50%, 0); }
+  body.desk #notif { left: auto; right: 16px; top: 16px; width: 340px; border-radius: 14px; transform: translateX(130%); }
+  body.desk #notif.show { transform: translateX(0); }
+  #notif .icon { width: 38px; height: 38px; border-radius: 10px; flex: none; display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 18px; }
+  #notif .txt { flex: 1; min-width: 0; }
+  #notif .app { font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; }
+  #notif b { display: block; font-size: 15px; margin-top: 1px; }
+  #notif small { display: block; font-size: 13.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* prototype switcher — deliberately not part of the design */
+  #switcher { position: fixed; left: 50%; bottom: 12px; transform: translateX(-50%); z-index: 100;
+    display: flex; align-items: center; gap: 4px; background: #ff0; color: #000; border: 2px solid #000;
+    border-radius: 999px; box-shadow: 0 4px 16px rgba(0,0,0,.35); padding: 4px; font: 600 13px ui-monospace, Menlo, monospace; }
+  #switcher button { width: 36px; height: 36px; border-radius: 50%; color: #000; font-size: 18px; }
+  #switcher button:hover { background: rgba(0,0,0,.1); }
+  #switcher span { padding: 0 8px; min-width: 150px; text-align: center; }
+  body.desk #rotate { display: none; }
+
+  /* =================== PHONE (variant E) =================== */
+  #phone { position: relative; max-width: var(--frame-w); min-height: 100vh; margin: 0 auto; background: var(--bg); overflow-x: hidden; }
+  body.desk #phone { display: none; }
+  body.landscape { --frame-w: 860px; }
+  body.landscape .cols { display: grid; grid-template-columns: 1fr 1fr; column-gap: 20px; align-items: start; }
+  body.landscape .E-shade .tags.big { display: grid; grid-template-columns: 1fr 1fr; }
+
+  .P { padding: 18px 16px calc(var(--switcher-h) + 110px); }
+  .P .search { font-size: 20px; padding: 16px; border-radius: 16px; border-width: 2px; }
+  .P .filters { display: flex; gap: 8px; margin: 12px 0 6px; }
+  .P .filters button { padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); font-size: 13px; }
+  .P .filters button.on { background: var(--text); color: var(--bg); border-color: var(--text); }
+  .P h2 { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 18px 0 4px; }
+  .P .row { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; width: 100%; text-align: left; padding: 10px 0; align-items: baseline; }
+  .P .row:active { opacity: .6; }
+  .P .row code { font-size: 15px; font-weight: 600; color: var(--accent); grid-row: span 2; }
+  .P .row b { font-weight: 500; font-size: 15px; } .P .row small { color: var(--muted); font-size: 13px; grid-column: 2; }
+  .P .empty { text-align: center; padding: 40px 12px; color: var(--muted); }
+
+  .E-shade { position: fixed; bottom: var(--switcher-h); left: 50%; transform: translateX(-50%); width: min(var(--frame-w), 100%); z-index: 30;
+    height: 78px; max-height: 75vh; display: flex; flex-direction: column; background: var(--surface);
+    border-radius: 22px 22px 0 0; box-shadow: 0 -6px 20px rgba(0,0,0,.18); }
+  .E-shade.open { height: auto; }
+  .E-shade .full { flex: 1; min-height: 0; overflow: hidden; }
+  .E-shade.open .full { overflow-y: auto; }
+  .E-shade .inner { padding: 4px 16px 18px; }
+  .E-shade .peek { flex: none; height: 78px; display: flex; flex-direction: column; align-items: stretch; gap: 10px; padding: 10px 0 0;
+    touch-action: none; cursor: grab; user-select: none; }
+  .E-shade .grip { width: 40px; height: 5px; border-radius: 3px; background: var(--line); margin: 0 auto; flex: none; }
+  .E-shade .names { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding: 0 16px; touch-action: pan-x; }
+  .E-shade .names .tag { padding: 6px 11px 6px 9px; font-size: 13px; }
+  .E-shade .title { display: none; font-size: 22px; font-weight: 700; padding: 0 18px; }
+  .E-shade.open .names { display: none; }
+  .E-shade.open .title { display: block; }
+  .E-scrim { position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 29; }
+
+  /* =================== DESKTOP (the Pad window) =================== */
+  #desk { display: none; padding: 32px 20px calc(var(--switcher-h) + 32px); }
+  body.desk #desk { display: block; }
+  .win { max-width: 1100px; margin: 0 auto; background: var(--bg); border-radius: 12px; overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0,0,0,.3), 0 0 0 1px rgba(0,0,0,.12); }
+  .titlebar { display: flex; align-items: center; justify-content: center; position: relative; height: 38px; background: var(--surface-2);
+    font-size: 13px; font-weight: 600; border-bottom: 1px solid var(--line); }
+  .titlebar .lights { position: absolute; left: 14px; display: flex; gap: 8px; }
+  .titlebar .lights i { width: 12px; height: 12px; border-radius: 50%; background: #ff5f57; }
+  .titlebar .lights i:nth-child(2) { background: #febc2e; } .titlebar .lights i:nth-child(3) { background: #28c840; }
+  .titlebar .kbd { position: absolute; right: 14px; font-weight: 400; font-size: 12px; }
+  .win { position: relative; }
+  .qrbtn { width: 34px; height: 34px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); display: grid; place-items: center; }
+  .qrbtn:hover { background: var(--surface-2); }
+  .qrbtn.on { color: var(--accent); border-color: var(--accent); }
+  .pill button { color: var(--muted); font-size: 15px; line-height: 1; margin-left: 2px; }
+  .qrpop { position: absolute; right: 16px; top: 92px; z-index: 10; background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    padding: 12px; box-shadow: 0 12px 32px rgba(0,0,0,.25); text-align: center; }
+  .qrpop #qr { margin: 0 auto 8px; }
+  .qrpop .ip { font-size: 13px; }
+  .toolbar { display: flex; align-items: center; gap: 10px; padding: 12px 20px; border-bottom: 1px solid var(--line); font-size: 13px; }
+  .toolbar .spacer { flex: 1; }
+  select { padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); }
+  .btn { padding: 7px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); font-size: 13px; }
+  .btn:hover { background: var(--surface-2); }
+  .btn.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 600; }
+  .btn.danger { color: var(--stuck); }
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; background: var(--surface-2); font-weight: 600; }
+  .grid-desk { display: grid; grid-template-columns: 1fr; gap: 16px; padding: 16px 20px 20px; }
+  .stack { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  .card h3 { margin: 0 0 4px; font-size: 15px; }
+  .small { font-size: 12.5px; }
+  .share { text-align: center; }
+  .share h2 { margin: 6px 0 6px; font-size: 20px; }
+  .share .bigbtn { width: 100%; padding: 14px; font-size: 16px; margin-top: 14px; border-radius: 10px; }
+  .share label { display: block; text-align: left; font-size: 12.5px; margin-top: 16px; }
+  .share label select { width: 100%; margin-top: 6px; }
+  #qr { width: 216px; height: 216px; margin: 6px auto 10px; padding: 8px; background: #fff; border-radius: 10px; display: grid; place-items: center; }
+  #qr img, #qr canvas { width: 200px !important; height: 200px !important; image-rendering: pixelated; }
+  .url { display: flex; gap: 6px; align-items: center; background: var(--surface-2); border-radius: 8px; padding: 6px 6px 6px 10px; font-size: 12px; text-align: left; }
+  .url span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .idle { margin: 12px 0 0; font-size: 12.5px; }
+  .log { list-style: none; margin: 8px 0 0; padding: 0; font-size: 13px; max-height: 220px; overflow-y: auto; }
+  .log li { display: flex; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+  .log time { color: var(--muted); font-variant-numeric: tabular-nums; flex: none; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 8px; font-size: 12.5px; font-weight: 600;
+    background: var(--surface-2); border: 1px solid var(--line); user-select: none; }
+  .chip[draggable="true"] { cursor: grab; }
+  .chip.dir { font-family: ui-monospace, Menlo, monospace; font-weight: 500; }
+  .chip button { color: var(--muted); font-size: 14px; line-height: 1; }
+  .palette { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 14px; }
+  .phones { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+  .phonecard { border: 1px solid var(--line); border-radius: 10px; padding: 12px; background: var(--bg); }
+  .phonecard.over { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
+  .phonecard .head { display: flex; align-items: center; gap: 8px; }
+  .phonecard .head b { flex: 1; }
+  .phonecard .drop { display: flex; flex-wrap: wrap; gap: 6px; min-height: 64px; margin: 10px 0; padding: 8px; border: 1px dashed var(--line); border-radius: 8px; align-content: flex-start; }
+  .phonecard .drop .muted { font-size: 12.5px; margin: auto; }
+  .phonecard .actions { display: flex; gap: 6px; }
+  table.agents { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+  table.agents td { padding: 8px 6px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  table.agents td.num { font-variant-numeric: tabular-nums; color: var(--muted); }
+  .footer { display: flex; flex-wrap: wrap; gap: 18px; padding: 10px 20px; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); }
+</style>
+</head>
+<body>
+<div id="phone"></div>
+<div id="desk"></div>
+<div id="toast"></div>
+<button id="notif" aria-live="polite"></button>
+<div id="switcher">
+  <button id="prev" aria-label="Previous view">‹</button>
+  <span id="label"></span>
+  <button id="next" aria-label="Next view">›</button>
+  <button id="rotate" aria-label="Rotate phone" title="Rotate phone">⟳</button>
+  <button id="ring" aria-label="Simulate an agent event" title="Simulate an agent event">🔔</button>
+</div>
+
+<script>
+// ---------- mock data ----------
+const HARNESSES = [
+  { id: 'claude', name: 'Claude Code', short: 'Claude', inv: n => `/${n} ` },
+  { id: 'codex',  name: 'Codex',       short: 'Codex',  inv: n => `$${n} ` },
+  { id: 'shared', name: 'Shared',      short: 'Shared', inv: n => `Use the ${n} skill ` },
+];
+const DIRS = [{ id: 'team', path: '~/work/team-skills', h: 'claude' }]; // an added Skill Directory assigned to Claude Code
+const SKILLS = [
+  ['claude', 'tdd', 'Test-driven development with red-green-refactor.'],
+  ['claude', 'code-review', 'Review changes since a fixed point against standards and spec.'],
+  ['claude', 'diagnosing-bugs', 'Diagnosis loop for hard bugs and performance regressions.'],
+  ['claude', 'prototype', 'Build a throwaway prototype to answer a design question.'],
+  ['claude', 'grilling', 'Stress-test a plan or idea relentlessly.'],
+  ['claude', 'simplify', 'Review changed code for reuse and simplification, then fix.'],
+  ['claude', 'research', 'Investigate a question against primary sources.'],
+  ['claude', 'superpowers:brainstorming', 'Explore an idea before writing code.'],
+  ['claude', 'deploy-checklist', 'Team checklist before shipping to production.', 'team'],
+  ['claude', 'incident-notes', 'Write up an incident timeline for the team.', 'team'],
+  ['codex', 'review', 'Review the current diff for bugs and risky changes.'],
+  ['codex', 'tdd', 'Write the failing test first, then the code.'],
+  ['codex', 'explain-diff', 'Summarise what the working-tree changes do.'],
+  ['codex', 'refactor', 'Restructure code without changing behaviour.'],
+  ['shared', 'writing-for-agents', 'Guidance for writing skills and AGENTS.md.'],
+  ['shared', 'pr', 'Write a pull request body.'],
+].map(([h, name, desc, dir = null]) => ({ id: h + ':' + name, h, name, desc, dir }));
+const SESSIONS = [
+  { h: 'claude', project: 'skills-pad',  status: 'working', secs: 252,  tools: 23 },
+  { h: 'claude', project: 'api-gateway', status: 'needs',   secs: 731,  tools: 41 },
+  { h: 'claude', project: 'infra',       status: 'stuck',   secs: 562,  tools: 8 },
+  { h: 'codex',  project: 'web-app',     status: 'idle',    secs: 3720, tools: 17 },
+  { h: 'codex',  project: 'docs',        status: 'ended',   secs: 1500, tools: 5 },
+];
+const STATUS_LABEL = { working: 'Working', needs: 'Needs input', idle: 'Idle', stuck: 'Stuck', ended: 'Ended' };
+const ALL_CHIPS = [...HARNESSES.map(h => 'h:' + h.id), ...DIRS.map(d => 'd:' + d.id)];
+const PHONES = [
+  { id: 'p1', name: 'iPhone 15 Pro', online: false, seen: '2 days ago', view: [...ALL_CHIPS] },
+  { id: 'p2', name: 'Galaxy S24',    online: false, seen: '5 days ago', view: ['h:codex'] },
+];
+const PROFILES = {
+  'Everything':       { p1: [...ALL_CHIPS], p2: [...ALL_CHIPS] },
+  'Codex on Galaxy':  { p1: ['h:claude', 'h:shared'], p2: ['h:codex'] },
+};
+const NETWORKS = [
+  { id: 'en0', label: 'Wi-Fi (en0)', ip: '192.168.1.23' },
+  { id: 'utun3', label: 'VPN (utun3)', ip: '10.8.0.4' },
+  { id: 'bridge100', label: 'Docker (bridge100)', ip: '192.168.64.1' },
+];
+
+const H = id => HARNESSES.find(h => h.id === id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const fmt = s => s >= 3600 ? `${Math.floor(s / 3600)}h ${Math.floor(s % 3600 / 60)}m` : `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, '0')}s`;
+const match = (s, q) => !q || (s.name + ' ' + s.desc).toLowerCase().includes(q.toLowerCase());
+const chipLabel = c => c.startsWith('h:') ? H(c.slice(2)).name : DIRS.find(d => d.id === c.slice(2)).path;
+const now = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+// A View: dropping a harness chip includes all of its directories.
+const canSee = (phone, s) => phone.view.some(c => c === 'h:' + s.h || (s.dir && c === 'd:' + s.dir));
+const seesHarness = (phone, h) => phone.view.some(c => c === 'h:' + h || (c.startsWith('d:') && DIRS.find(d => d.id === c.slice(2)).h === h));
+
+// ---------- state (in memory only) ----------
+const state = {
+  view: 'phone', q: '', filters: new Set(), topOpen: false, dragging: false, dnd: false,
+  sharing: false, token: null, port: null, net: 'en0', idleLeft: 900, profile: 'Everything',
+  log: [{ t: '09:12:04', text: 'Skills Pad started · 4 skill directories scanned' }],
+};
+const me = () => PHONES.find(p => p.id === 'p1'); // the phone view acts as the iPhone
+const addLog = text => { state.log.unshift({ t: now(), text }); state.log.length = Math.min(state.log.length, 30); };
+
+// ---------- toast, paste, focus ----------
+let toastTimer;
+function toast(text) {
+  const t = document.getElementById('toast');
+  t.textContent = text;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 1500);
+}
+function paste(skillId) {
+  const s = SKILLS.find(x => x.id === skillId);
+  const text = H(s.h).inv(s.name);
+  navigator.vibrate?.(12);
+  toast(`Pasted “${text}”`);
+  addLog(`${esc(me().name)} pasted <span class="mono">${esc(text)}</span>`);
+  console.log('[prototype] paste', { skillId, text });
+}
+// The phone sends only a session ID; the Core would bring that session's terminal/editor tab to the front.
+function focusSession(i) {
+  const s = SESSIONS[i];
+  navigator.vibrate?.(12);
+  if (s.status === 'ended') return toast(`${s.project} has ended — no tab to open`);
+  toast(state.view === 'phone' ? `Laptop → ${s.project} (${H(s.h).name})` : `Brought ${s.project} to the front`);
+  if (state.view === 'phone') addLog(`${esc(me().name)} opened ${esc(s.project)}`);
+}
+
+// ---------- mimicked notifications ----------
+// Over plain LAN HTTP the phone can't use system notifications (they need HTTPS, and on iOS an installed web app),
+// so the phone shows in-page banners while the page is open. The desktop card mimics a macOS notification.
+let flashIdx = -1, notifTimer, notifIdx = -1;
+const NEXT = { working: ['needs', 'idle', 'stuck'], needs: ['working'], idle: ['working'], stuck: ['working', 'needs'] };
+const NOTIFY = {
+  needs: ['needs your input', 'Waiting on a permission prompt'],
+  idle:  ['finished', 'Done — waiting for your next prompt'],
+  stuck: ['looks stuck', 'Working with no events for 5 minutes'],
+};
+function simulateEvent() {
+  const live = SESSIONS.map((s, i) => i).filter(i => SESSIONS[i].status !== 'ended');
+  for (let tries = 0; tries < 10; tries++) {
+    const i = live[Math.floor(Math.random() * live.length)];
+    const s = SESSIONS[i];
+    const to = NEXT[s.status][Math.floor(Math.random() * NEXT[s.status].length)];
+    if (!NOTIFY[to] && tries < 9) continue;
+    console.log('[prototype] session event', { project: s.project, from: s.status, to });
+    s.status = to;
+    if (to === 'working') s.tools++;
+    if (NOTIFY[to]) notify(i);
+    flashIdx = i;
+    setTimeout(() => { if (flashIdx === i) flashIdx = -1; }, 2600);
+    safeRender();
+    return;
+  }
+}
+function notify(i) {
+  const s = SESSIONS[i], [title, body] = NOTIFY[s.status];
+  if (state.view === 'phone' && !(me() && seesHarness(me(), s.h))) return; // outside this phone's View
+  const color = { needs: 'var(--needs)', idle: 'var(--idle)', stuck: 'var(--stuck)' }[s.status];
+  const n = document.getElementById('notif');
+  n.innerHTML = `<span class="icon" style="background:${color}">${H(s.h).short[0]}</span>
+    <span class="txt"><span class="app"><span>Skills Pad · ${H(s.h).name}</span><span>now</span></span>
+    <b>${esc(s.project)} ${title}</b><small>${body} · ${state.view === 'phone' ? 'tap to open on laptop' : 'click to show'}</small></span>`;
+  notifIdx = i;
+  n.classList.add('show');
+  navigator.vibrate?.([30, 60, 30]);
+  clearTimeout(notifTimer);
+  notifTimer = setTimeout(() => n.classList.remove('show'), 5000);
+}
+document.getElementById('notif').onclick = () => {
+  document.getElementById('notif').classList.remove('show');
+  if (notifIdx >= 0) focusSession(notifIdx);
+};
+document.getElementById('ring').onclick = simulateEvent;
+setInterval(simulateEvent, 12000);
+
+// ---------- rotate (phone only): manual toggle, or the real phone turned sideways ----------
+const realLandscape = matchMedia('(orientation: landscape) and (max-height: 500px)');
+let rotated = new URLSearchParams(location.search).get('rotated') === '1';
+function applyRotation() {
+  const on = rotated || realLandscape.matches;
+  document.body.classList.toggle('landscape', on);
+  document.getElementById('rotate').style.transform = on ? 'rotate(90deg)' : '';
+}
+document.getElementById('rotate').onclick = () => {
+  rotated = !rotated;
+  const url = new URL(location.href);
+  rotated ? url.searchParams.set('rotated', '1') : url.searchParams.delete('rotated');
+  history.replaceState(null, '', url);
+  applyRotation();
+};
+realLandscape.addEventListener('change', applyRotation);
+
+// =================== PHONE VIEW ===================
+function renderPhone() {
+  const p = me();
+  if (!p) return `<div class="P"><div class="empty">This phone was forgotten on the computer.<br>Scan the QR code again to pair.</div></div>`;
+  const sessions = SESSIONS.map((s, i) => [s, i]).filter(([s]) => seesHarness(p, s.h));
+  const open = state.topOpen;
+  return `<div class="P">${paletteBody(p)}</div>
+    ${open ? '<div class="E-scrim" data-close-top></div>' : ''}
+    <div class="E-shade ${open ? 'open' : ''}" id="shade">
+      <div class="peek" data-drag>
+        <div class="grip"></div>
+        <div class="names">${sessions.map(([s, i]) => `<button class="tag st-${s.status} ${i === flashIdx ? 'flash' : ''}" data-focus="${i}"><span class="dot s-${s.status}"></span>${esc(s.project)}</button>`).join('') || '<span class="muted" style="font-size:13px">No agents running</span>'}</div>
+        <div class="title">Agents</div>
+      </div>
+      <div class="full"><div class="inner">
+        <div class="tags big">${sessions.map(([s, i]) => `<button class="tag st-${s.status} ${i === flashIdx ? 'flash' : ''}" data-focus="${i}">
+          <span class="dot s-${s.status}"></span>${esc(s.project)}<span class="h">${H(s.h).short}</span><span class="t">${s.status === 'ended' ? 'ended' : fmt(s.secs)}</span></button>`).join('')}</div>
+        <p class="muted" style="font-size:13px;margin:16px 2px 0">Tap an agent to bring its tab to the front on the laptop.</p>
+      </div></div>
+    </div>`;
+}
+function paletteBody(p) {
+  const harnesses = HARNESSES.filter(h => seesHarness(p, h.id));
+  if (!harnesses.length) return `<div class="empty">Nothing is shared with this phone yet.<br>Drag a chip onto it in the Pad on your computer.</div>`;
+  const shown = harnesses.filter(h => !state.filters.size || state.filters.has(h.id));
+  const groups = shown.map(h => [h, SKILLS.filter(s => s.h === h.id && canSee(p, s) && match(s, state.q))]).filter(([, l]) => l.length);
+  return `<input class="search" data-q placeholder="Type to find a skill…" value="${esc(state.q)}">
+    <div class="filters">${harnesses.map(h => `<button class="${state.filters.has(h.id) ? 'on' : ''}" data-filter="${h.id}">${h.short}</button>`).join('')}</div>
+    ${groups.map(([h, l]) => `<h2>${h.name}</h2><div class="cols">${l.map(s => `<button class="row" data-paste="${s.id}"><code class="mono">${esc(h.inv(s.name).trim().slice(0, 1))}</code><b>${esc(s.name)}</b><small>${esc(s.desc)}</small></button>`).join('')}</div>`).join('') || '<div class="empty">Nothing matches.</div>'}`;
+}
+
+// bottom agent sheet: drag up to open, down to close; tap the bar to toggle; tap a name to focus it
+const PEEK_H = 78;
+const shadeMax = el => Math.min(window.innerHeight * 0.75, el.querySelector('.inner').scrollHeight + PEEK_H);
+function settleShade(el, open) {
+  el.classList.remove('open');
+  el.style.transition = 'none';
+  el.style.height = el.offsetHeight + 'px';
+  el.offsetHeight; // flush so the transition starts from the current height
+  el.style.transition = 'height .22s ease-out';
+  el.style.height = (open ? shadeMax(el) : PEEK_H) + 'px';
+  setTimeout(() => { state.dragging = false; state.topOpen = open; render(); }, 230);
+}
+let drag = null;
+document.addEventListener('pointerdown', e => {
+  const handle = e.target.closest('[data-drag]');
+  if (!handle) return;
+  const el = document.getElementById('shade');
+  drag = { el, handle, id: e.pointerId, x0: e.clientX, y0: e.clientY, h0: el.offsetHeight, moved: false, max: shadeMax(el),
+           onTag: !!e.target.closest('[data-focus]') };
+});
+document.addEventListener('pointermove', e => {
+  if (!drag) return;
+  const dx = e.clientX - drag.x0, dy = e.clientY - drag.y0;
+  if (!drag.moved) {
+    if (Math.abs(dy) < 6 || Math.abs(dy) < Math.abs(dx)) return;
+    drag.moved = true;
+    state.dragging = true;
+    drag.el.classList.remove('open');
+    drag.el.style.transition = 'none';
+    drag.handle.setPointerCapture(drag.id);
+  }
+  drag.el.style.height = Math.max(PEEK_H, Math.min(drag.max, drag.h0 - dy)) + 'px';
+});
+document.addEventListener('pointerup', () => {
+  if (!drag) return;
+  const { el, moved, max, onTag } = drag;
+  drag = null;
+  if (moved) settleShade(el, el.offsetHeight > (PEEK_H + max) / 2);
+  else if (!onTag) settleShade(el, !state.topOpen);
+});
+document.addEventListener('pointercancel', () => {
+  if (!drag) return;
+  const { el, moved } = drag;
+  drag = null;
+  if (moved) settleShade(el, state.topOpen);
+});
+
+// =================== DESKTOP VIEW (the Pad) ===================
+function shareUrl() {
+  // Served over the LAN? Then the QR really opens this prototype's phone view on a scanning phone.
+  if (location.protocol.startsWith('http') && !['localhost', '127.0.0.1'].includes(location.hostname))
+    return `${location.origin}${location.pathname}?view=phone&t=${state.token}`;
+  return `http://${NETWORKS.find(n => n.id === state.net).ip}:${state.port}/?t=${state.token}`;
+}
+function startSharing() {
+  state.sharing = true;
+  state.token = [...crypto.getRandomValues(new Uint8Array(12))].map(b => b.toString(36).padStart(2, '0')).join('').slice(0, 22);
+  state.port = 49152 + Math.floor(Math.random() * 16000);
+  state.idleLeft = 900;
+  addLog(`Sharing started on ${NETWORKS.find(n => n.id === state.net).ip}:${state.port} · new token`);
+  // pretend the iPhone scans and connects a moment later
+  setTimeout(() => {
+    if (!state.sharing || !me()) return;
+    me().online = true;
+    addLog(`${esc(me().name)} connected`);
+    safeRender();
+  }, 3000);
+}
+function stopSharing(reason) {
+  state.sharing = false;
+  state.token = null;
+  PHONES.forEach(p => { if (p.online) { p.online = false; p.seen = 'just now'; } });
+  addLog(reason);
+}
+function renderDesk() {
+  const sh = state.sharing;
+  const anyOnline = PHONES.some(p => p.online);
+  return `<div class="win">
+    <div class="titlebar"><span class="lights"><i></i><i></i><i></i></span>Skills Pad<span class="kbd muted">⌘⌥S to show or hide</span></div>
+    <div class="toolbar">
+      Profile
+      <select data-profile>${Object.keys(PROFILES).map(n => `<option ${n === state.profile ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>
+      <button class="btn" data-save-profile>Save as…</button>
+      <span class="spacer"></span>
+      ${sh ? `<span class="pill"><span class="dot s-working"></span>Sharing<button data-stop title="Stop sharing" aria-label="Stop sharing">×</button></span>` : ''}
+      <button class="qrbtn ${sh ? 'on' : ''}" data-qr title="Open on phone" aria-label="Open on phone">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M3 3h8v8H3zm2 2v4h4V5zm8-2h8v8h-8zm2 2v4h4V5zM3 13h8v8H3zm2 2v4h4v-4zm8-2h2v2h-2zm4 0h4v2h-4zm-4 4h2v4h-2zm4 0h2v2h2v2h-4zm2-2h2v2h-2z"/></svg>
+      </button>
+      ${sh && state.qrOpen ? `<div class="qrpop"><div id="qr"></div><div class="mono ip">${esc(new URL(shareUrl()).host)}</div></div>` : ''}
+    </div>
+    <div class="grid-desk">
+      <div class="stack">
+        <section class="card">
+          <h3>Phones</h3>
+          <p class="muted small" style="margin:0">Drag a harness or folder onto a phone to choose what it sees. Changes apply live.</p>
+          <div class="palette">${ALL_CHIPS.map(c => `<span class="chip ${c.startsWith('d:') ? 'dir' : ''}" draggable="true" data-chip="${c}">${esc(chipLabel(c))}</span>`).join('')}</div>
+          <div class="phones">${PHONES.map(p => `
+            <div class="phonecard" data-dropzone="${p.id}">
+              <div class="head"><span class="dot ${p.online ? 's-working' : 's-ended'}"></span><b>${esc(p.name)}</b>
+                <span class="muted small">${p.online ? 'online' : 'seen ' + esc(p.seen)}</span></div>
+              <div class="drop">${p.view.map(c => `<span class="chip ${c.startsWith('d:') ? 'dir' : ''}">${esc(chipLabel(c))}<button data-unchip="${p.id}|${c}" aria-label="Remove">×</button></span>`).join('') || '<span class="muted">Sees nothing · drop chips here</span>'}</div>
+              <div class="actions">
+                <button class="btn" data-rename="${p.id}">Rename</button>
+                ${p.online ? `<button class="btn" data-disconnect="${p.id}">Disconnect</button>` : ''}
+                <button class="btn danger" data-forget="${p.id}">Forget</button>
+              </div>
+            </div>`).join('') || '<p class="muted">No phones yet. Start sharing and scan the QR code.</p>'}</div>
+        </section>
+        <section class="card">
+          <h3>Agents</h3>
+          <table class="agents">${SESSIONS.map((s, i) => `<tr class="${i === flashIdx ? 'flash' : ''}">
+            <td><span class="dot s-${s.status}"></span></td><td><b>${esc(s.project)}</b></td><td class="muted">${H(s.h).name}</td>
+            <td class="c-${s.status}">${STATUS_LABEL[s.status]}</td><td class="num">${s.status === 'ended' ? '—' : fmt(s.secs)}</td>
+            <td class="num">${s.tools} tools</td>
+            <td style="text-align:right">${s.status === 'ended' ? '' : `<button class="btn" data-focus="${i}">Show</button>`}</td></tr>`).join('')}</table>
+        </section>
+      </div>
+    </div>
+    <div class="footer"><span>Network: Wi-Fi · ${NETWORKS.find(n => n.id === state.net).ip}</span><span>Accessibility: ✓ granted</span><span>Hotkey: ⌘⌥S</span><span>Start at login: off</span><span>Skill directories: 4</span><span>Hooks: Claude Code, Codex</span></div>
+  </div>`;
+}
+let qrCache = { url: null, node: null };
+function mountQr() {
+  const box = document.getElementById('qr');
+  if (!box) return;
+  const url = shareUrl();
+  if (qrCache.url !== url) {
+    const node = document.createElement('div');
+    if (window.QRCode) new QRCode(node, { text: url, width: 200, height: 200, correctLevel: QRCode.CorrectLevel.M });
+    else node.innerHTML = '<span class="muted small">QR library didn’t load (offline?)</span>';
+    qrCache = { url, node };
+  }
+  box.appendChild(qrCache.node);
+}
+
+// desktop drag and drop of chips onto phone cards
+document.addEventListener('dragstart', e => {
+  const c = e.target.closest?.('[data-chip]');
+  if (!c) return;
+  state.dnd = true;
+  e.dataTransfer.setData('text/plain', c.dataset.chip);
+});
+document.addEventListener('dragend', () => { state.dnd = false; document.querySelectorAll('.over').forEach(x => x.classList.remove('over')); });
+document.addEventListener('dragover', e => {
+  const z = e.target.closest?.('[data-dropzone]');
+  if (!z) return;
+  e.preventDefault();
+  document.querySelectorAll('.over').forEach(x => x !== z && x.classList.remove('over'));
+  z.classList.add('over');
+});
+document.addEventListener('drop', e => {
+  const z = e.target.closest?.('[data-dropzone]');
+  if (!z) return;
+  e.preventDefault();
+  const chip = e.dataTransfer.getData('text/plain');
+  const p = PHONES.find(x => x.id === z.dataset.dropzone);
+  if (chip && !p.view.includes(chip)) { p.view.push(chip); addLog(`${esc(p.name)} can now see ${esc(chipLabel(chip))}`); }
+  state.dnd = false;
+  render();
+});
+
+// =================== render + events ===================
+const VIEWS = { phone: 'Phone (E)', desktop: 'Desktop (Pad)' };
+function render() {
+  document.body.classList.toggle('desk', state.view === 'desktop');
+  document.getElementById('label').textContent = VIEWS[state.view];
+  const focused = document.activeElement?.matches?.('[data-q]');
+  const caret = focused ? document.activeElement.selectionStart : null;
+  if (state.view === 'phone') document.getElementById('phone').innerHTML = renderPhone();
+  else { document.getElementById('desk').innerHTML = renderDesk(); mountQr(); }
+  if (focused) {
+    const el = document.querySelector('[data-q]');
+    if (el) { el.focus(); el.setSelectionRange(caret, caret); }
+  }
+}
+// don't swap the DOM between a press and its release, or the click gets lost
+let pressing = false;
+addEventListener('pointerdown', () => { pressing = true; }, true);
+addEventListener('pointerup', () => { pressing = false; }, true);
+addEventListener('pointercancel', () => { pressing = false; }, true);
+function safeRender() {
+  const busy = pressing || state.dragging || state.dnd || document.activeElement?.matches?.('[data-q], select');
+  if (!busy) render();
+}
+function go(delta) {
+  const keys = Object.keys(VIEWS);
+  state.view = keys[(keys.indexOf(state.view) + delta + keys.length) % keys.length];
+  const url = new URL(location.href);
+  url.searchParams.set('view', state.view);
+  history.replaceState(null, '', url);
+  state.q = ''; state.topOpen = false;
+  render();
+}
+document.getElementById('prev').onclick = () => go(-1);
+document.getElementById('next').onclick = () => go(1);
+document.addEventListener('keydown', e => {
+  if (e.target.closest('input, textarea, select, [contenteditable]')) return;
+  if (e.key === 'ArrowLeft') go(-1);
+  if (e.key === 'ArrowRight') go(1);
+});
+document.addEventListener('input', e => {
+  if (e.target.matches('[data-q]')) { state.q = e.target.value; render(); }
+});
+document.addEventListener('change', e => {
+  if (e.target.matches('[data-net]')) state.net = e.target.value;
+  if (e.target.matches('[data-profile]')) {
+    state.profile = e.target.value;
+    const snap = PROFILES[state.profile];
+    PHONES.forEach(p => { if (snap[p.id]) p.view = [...snap[p.id]]; }); // phones not in the profile are left alone
+    addLog(`Switched to profile “${esc(state.profile)}”`);
+  }
+  e.target.blur();
+  render();
+});
+document.addEventListener('click', e => {
+  // clicking anywhere outside the QR popover closes it
+  if (state.qrOpen && !e.target.closest('.qrpop, [data-qr]')) { state.qrOpen = false; render(); }
+  const t = e.target.closest('[data-qr],[data-close-top],[data-focus],[data-paste],[data-filter],[data-start],[data-stop],[data-copy],[data-unchip],[data-rename],[data-disconnect],[data-forget],[data-save-profile]');
+  if (!t) return;
+  const d = t.dataset;
+  if ('qr' in d) {
+    if (!state.sharing) { startSharing(); state.qrOpen = true; }
+    else state.qrOpen = !state.qrOpen;
+  }
+  if ('stop' in d) state.qrOpen = false;
+  if ('closeTop' in d) return settleShade(document.getElementById('shade'), false);
+  if (d.focus) return focusSession(+d.focus);
+  if (d.paste) { paste(d.paste); return; }
+  if (d.filter) state.filters.has(d.filter) ? state.filters.delete(d.filter) : state.filters.add(d.filter);
+  if ('start' in d) startSharing();
+  if ('stop' in d) stopSharing('Sharing stopped');
+  if ('copy' in d) { navigator.clipboard?.writeText(shareUrl()); toast('Address copied'); return; }
+  if (d.unchip) {
+    const [id, chip] = d.unchip.split('|');
+    const p = PHONES.find(x => x.id === id);
+    p.view = p.view.filter(c => c !== chip);
+    addLog(`${esc(p.name)} can no longer see ${esc(chipLabel(chip))}`);
+  }
+  if (d.rename) {
+    const p = PHONES.find(x => x.id === d.rename);
+    const name = prompt('Phone name', p.name);
+    if (name) { addLog(`Renamed ${esc(p.name)} to ${esc(name)}`); p.name = name; }
+  }
+  if (d.disconnect) {
+    const p = PHONES.find(x => x.id === d.disconnect);
+    p.online = false; p.seen = 'just now';
+    addLog(`Disconnected ${esc(p.name)} · it must scan again`);
+  }
+  if (d.forget) {
+    const p = PHONES.find(x => x.id === d.forget);
+    PHONES.splice(PHONES.indexOf(p), 1);
+    addLog(`Forgot ${esc(p.name)}`);
+  }
+  if ('saveProfile' in d) {
+    const name = prompt('Profile name');
+    if (name) {
+      PROFILES[name] = Object.fromEntries(PHONES.map(p => [p.id, [...p.view]]));
+      state.profile = name;
+      addLog(`Saved profile “${esc(name)}”`);
+    }
+  }
+  render();
+});
+
+// 1-second tick: elapsed times, and the 15-minute idle stop while no phone is connected
+setInterval(() => {
+  SESSIONS.forEach(s => { if (['working', 'needs', 'stuck'].includes(s.status)) s.secs++; });
+  if (state.sharing && !PHONES.some(p => p.online) && --state.idleLeft <= 0) stopSharing('Sharing stopped after 15 minutes without phone activity');
+  safeRender();
+}, 1000);
+
+// ---------- boot ----------
+const params = new URLSearchParams(location.search);
+state.view = params.get('view') === 'desktop' ? 'desktop' : 'phone';
+if (params.get('t') && me()) me().online = true; // opened from a scanned QR code
+applyRotation();
+render();
+</script>
+</body>
+</html>
