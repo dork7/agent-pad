@@ -11,7 +11,8 @@
 - [ ] Every Session card on the phone and in the Pad has a "Pending tickets" action
 - [ ] The list is read from the Session's project folder on every request and is never cached, so newly added or closed Tickets show up on refresh
 - [ ] A Ticket is pending unless its `**Status:**` line is `done`, `closed` or `wontfix` (case-insensitive); a Ticket with no Status line counts as pending
-- [ ] Each entry shows number, title (from the first heading), status, and checklist progress (for example `2/6`)
+- [ ] Each entry shows number, title (from the first heading), a status tag, and checklist progress (for example `2/6`)
+- [ ] The status tag shows the ticket's `**Status:**` value as written, such as `triage` or `ready-for-agent`, on the phone and in the Pad. Known values get distinct colors, unknown values get a neutral tag, and a ticket with no Status line shows no tag
 - [ ] Entries are ordered by ticket number, and "Blocked by" Tickets that are still pending are marked as blocked
 - [ ] Tapping a Ticket shows its full Markdown, rendered read-only
 - [ ] A project with no ticket folder or no pending Tickets shows a clear empty message
