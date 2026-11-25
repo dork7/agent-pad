@@ -6,7 +6,7 @@ mod hotkey;
 
 use std::sync::Arc;
 
-use skills_pad_core::{Core, CoreConfig, Paster, SystemClock};
+use skills_pad_core::{Core, CoreConfig, PadWindow, SystemClock, SystemPaster};
 use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
@@ -16,15 +16,34 @@ use tauri_plugin_global_shortcut::ShortcutState;
 const PAD: &str = "pad";
 const SHARING_CHANGED: &str = "sharing-changed";
 
-struct LoggingPaster;
+/// Lets the Core's paste flow move the Pad out of the way so the paste lands in the app the
+/// user was working in.
+struct TauriPad(AppHandle);
 
-impl Paster for LoggingPaster {
-    fn paste(&self, text: &str) {
-        eprintln!("Skills Pad placeholder paste: {text:?}");
+impl PadWindow for TauriPad {
+    fn hide_if_visible(&self) -> bool {
+        let Some(pad) = self.0.get_webview_window(PAD) else {
+            return false;
+        };
+        if !pad.is_visible().unwrap_or(false) {
+            return false;
+        }
+        // On macOS, hiding the whole app (not just the window) hands focus back to the
+        // previously active app.
+        #[cfg(target_os = "macos")]
+        let hidden = self.0.hide();
+        #[cfg(not(target_os = "macos"))]
+        let hidden = pad.hide();
+        if let Err(error) = hidden {
+            eprintln!("Skills Pad could not hide before pasting: {error}");
+        }
+        true
     }
 }
 
 fn show_pad(pad: &WebviewWindow) -> tauri::Result<()> {
+    #[cfg(target_os = "macos")]
+    pad.app_handle().show()?;
     pad.show()?;
     pad.unminimize()?;
     pad.set_focus()
@@ -111,11 +130,13 @@ fn main() -> tauri::Result<()> {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
-            app.manage(Core::start(CoreConfig {
+            let core = Core::start(CoreConfig {
                 home: app.path().home_dir()?,
-                paster: Arc::new(LoggingPaster),
+                paster: Arc::new(SystemPaster),
                 clock: Arc::new(SystemClock),
-            })?);
+            })?;
+            core.set_pad_window(Arc::new(TauriPad(app.handle().clone())));
+            app.manage(core);
 
             let path = app.path().app_config_dir()?.join("config.json");
             app.manage(hotkey::HotkeySettings::register_at_startup(
@@ -143,6 +164,12 @@ fn main() -> tauri::Result<()> {
             commands::sharing_status,
             commands::set_sharing_address_override,
             commands::sharing_address,
+            commands::settings,
+            commands::set_send_enter,
+            commands::list_phones,
+            commands::rename_phone,
+            commands::disconnect_phone,
+            commands::forget_phone,
             hotkey::get_hotkey,
             hotkey::set_hotkey,
         ])

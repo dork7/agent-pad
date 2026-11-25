@@ -148,3 +148,17 @@ p { margin: 6px 0 0; }
   overflow-wrap: anywhere;
   text-align: left;
 }
+
+.phones { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
+.phone { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line);
+  border-radius: 10px; background: var(--bg); }
+.phone .who { flex: 1; min-width: 0; }
+.phone .who b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.phone .who input { width: 100%; font: inherit; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--accent);
+  background: var(--surface); color: inherit; }
+.phone .actions { display: flex; gap: 6px; flex: none; }
+.phone .dot { background: var(--muted); }
+.phone .dot.active { background: var(--working); }
+.toggle { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
+.toggle input { margin-top: 2px; }
+.toggle b, .toggle .muted { display: block; }

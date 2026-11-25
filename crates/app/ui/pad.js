@@ -122,8 +122,103 @@ byId("hotkey-form").addEventListener("submit", async (event) => {
   }
 });
 
+function lastSeen(unix) {
+  const seconds = Math.max(0, Math.round(Date.now() / 1000 - unix));
+  if (seconds < 60) return "just now";
+  if (seconds < 3600) return `${Math.round(seconds / 60)} min ago`;
+  if (seconds < 86400) return `${Math.round(seconds / 3600)} h ago`;
+  return `${Math.round(seconds / 86400)} days ago`;
+}
+
+let renamingPhone = null;
+
+async function phoneAction(command, args) {
+  setMessage("phones-error", null);
+  try {
+    await invoke(command, args);
+  } catch (error) {
+    setMessage("phones-error", error);
+  }
+  renamingPhone = null;
+  refreshPhones();
+}
+
+function button(label, className, onClick) {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = `btn ${className}`;
+  b.textContent = label;
+  b.addEventListener("click", onClick);
+  return b;
+}
+
+async function refreshPhones() {
+  if (renamingPhone) return; // don't clobber the rename field while typing
+  let phones;
+  try {
+    phones = await invoke("list_phones");
+  } catch (error) {
+    setMessage("phones-error", `Could not list phones: ${error}`);
+    return;
+  }
+  byId("phones-message").hidden = phones.length > 0;
+  byId("phones").replaceChildren(...phones.map((phone) => {
+    const item = document.createElement("li");
+    item.className = "phone";
+    const dot = document.createElement("span");
+    dot.className = `dot${phone.online ? " active" : ""}`;
+    dot.setAttribute("aria-label", phone.online ? "Online" : "Offline");
+    const who = document.createElement("div");
+    who.className = "who";
+    const name = document.createElement("b");
+    name.textContent = phone.name;
+    const seen = document.createElement("span");
+    seen.className = "muted";
+    seen.textContent = phone.online ? "Online" : `Last seen ${lastSeen(phone.last_seen)}`;
+    who.append(name, seen);
+    const actions = document.createElement("div");
+    actions.className = "actions";
+    actions.append(
+      button("Rename", "", () => {
+        renamingPhone = phone.id;
+        const input = document.createElement("input");
+        input.value = phone.name;
+        input.setAttribute("aria-label", `New name for ${phone.name}`);
+        input.addEventListener("keydown", (event) => {
+          if (event.key === "Enter") phoneAction("rename_phone", { id: phone.id, name: input.value });
+          if (event.key === "Escape") { renamingPhone = null; refreshPhones(); }
+        });
+        input.addEventListener("blur", () => phoneAction("rename_phone", { id: phone.id, name: input.value }));
+        name.replaceWith(input);
+        input.focus();
+        input.select();
+      }),
+      button("Disconnect", "", () => phoneAction("disconnect_phone", { id: phone.id })),
+      button("Forget", "danger", () => phoneAction("forget_phone", { id: phone.id })),
+    );
+    item.append(dot, who, actions);
+    return item;
+  }));
+}
+
+const sendEnter = byId("send-enter");
+invoke("settings").then((settings) => {
+  sendEnter.checked = settings.send_enter;
+  sendEnter.disabled = false;
+}).catch((error) => setMessage("sharing-error", `Could not load settings: ${error}`));
+sendEnter.addEventListener("change", async () => {
+  try {
+    await invoke("set_send_enter", { on: sendEnter.checked });
+  } catch (error) {
+    sendEnter.checked = !sendEnter.checked;
+    setMessage("sharing-error", `Could not save the setting: ${error}`);
+  }
+});
+
 window.addEventListener("focus", refreshHarnesses);
 refreshHarnesses();
+refreshPhones();
+setInterval(() => { if (!document.hidden) refreshPhones(); }, 2000);
 loadHotkey();
 listen("sharing-changed", ({ payload }) => {
   setMessage("sharing-error", payload);

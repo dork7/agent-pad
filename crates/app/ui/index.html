@@ -37,6 +37,23 @@
       <p id="harness-message" class="muted" role="status">Looking for skills…</p>
     </section>
 
+    <section class="card" aria-labelledby="phones-heading">
+      <h2 id="phones-heading">Phones</h2>
+      <ul id="phones" class="phones"></ul>
+      <p id="phones-message" class="muted" role="status">No phones yet. Choose Open on phone and scan the QR code.</p>
+      <p id="phones-error" class="error" role="alert" hidden></p>
+    </section>
+
+    <section class="card">
+      <label class="toggle">
+        <input id="send-enter" type="checkbox" disabled>
+        <span>
+          <b>Send Enter after paste</b>
+          <span class="muted">A tap runs the skill instead of only typing it.</span>
+        </span>
+      </label>
+    </section>
+
     <section class="card">
       <form id="hotkey-form">
         <label for="hotkey">Pad hotkey</label>
