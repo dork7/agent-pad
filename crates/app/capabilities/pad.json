@@ -1,0 +1,6 @@
+{
+  "identifier": "pad",
+  "description": "Receive sharing changes from the tray in the Pad window",
+  "windows": ["pad"],
+  "permissions": ["core:event:allow-listen", "core:event:allow-unlisten"]
+}

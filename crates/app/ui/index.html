@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Skills Pad</title>
+  <link rel="stylesheet" href="pad.css">
+  <script src="pad.js" defer></script>
+</head>
+<body>
+  <header class="toolbar">
+    <span class="pill" role="status">
+      <span id="sharing-dot" class="dot" aria-hidden="true"></span>
+      <span id="sharing-status">Checking sharing…</span>
+    </span>
+    <button id="open-on-phone" class="btn primary" type="button" disabled>
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+        <path d="M3 3h8v8H3zm2 2v4h4V5zm8-2h8v8h-8zm2 2v4h4V5zM3 13h8v8H3zm2 2v4h4v-4zm8-2h2v2h-2zm4 0h4v2h-4zm-4 4h2v4h-2zm4 0h2v2h2v2h-4zm2-2h2v2h-2z"/>
+      </svg>
+      Open on phone
+    </button>
+    <button id="stop-sharing" class="btn danger" type="button" hidden>Stop sharing</button>
+  </header>
+  <main>
+    <p id="sharing-error" class="error" role="alert" hidden></p>
+
+    <section id="pairing" class="card share" aria-labelledby="pairing-title" hidden>
+      <h2 id="pairing-title">Open on phone</h2>
+      <p class="muted">Scan the QR code with your phone’s camera.</p>
+      <img id="qr" width="216" height="216" alt="QR code for the sharing URL">
+      <p id="sharing-url" class="url"></p>
+    </section>
+
+    <section class="card" aria-labelledby="harness-heading">
+      <h2 id="harness-heading">Harnesses</h2>
+      <ul id="harnesses" class="palette" aria-label="Harness skill counts"></ul>
+      <p id="harness-message" class="muted" role="status">Looking for skills…</p>
+    </section>
+
+    <section class="card">
+      <form id="hotkey-form">
+        <label for="hotkey">Pad hotkey</label>
+        <p id="hotkey-help" class="muted">Enter a shortcut with + between keys to show or hide the Pad.</p>
+        <div class="form-row">
+          <input id="hotkey" type="text" autocomplete="off" autocapitalize="off" spellcheck="false"
+                 aria-describedby="hotkey-help hotkey-error" required disabled>
+          <button id="save-hotkey" class="btn" type="submit" disabled>Save hotkey</button>
+        </div>
+        <p id="hotkey-error" class="error" role="alert" hidden></p>
+        <p id="hotkey-status" class="muted" role="status" hidden></p>
+      </form>
+    </section>
+  </main>
+</body>
+</html>
