@@ -4,7 +4,7 @@
 
 **Blocked by:** #4
 
-**Status:** done
+**Status:** done (manual checks pending)
 
 **GitHub:** #6
 

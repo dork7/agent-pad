@@ -4,7 +4,7 @@
 
 **Blocked by:** #5
 
-**Status:** in-progress (Core done; Pad toggle pending the shell from ticket 05)
+**Status:** done (manual checks pending)
 
 **GitHub:** #16
 
@@ -14,3 +14,5 @@
 - [x] Serialized pastes from several phones each get their own Enter, in order (tested with the recording Paster)
 
 **Notes:** The Core has `Core::settings()` and `Core::set_send_enter(bool)`, saved to `settings.json` in the OS config folder (`settings::config_dir`). Unknown fields in that file are kept, so the shell can store its own settings, such as the hotkey, in the same file. `Paster::press_enter` is implemented by `SystemPaster` (enigo Return) and recorded by `RecordingPaster` as `Recorded::Enter`. The Enter on Windows is untested on real hardware.
+
+The Pad has a Send Enter toggle (commit 5db9e21). Manual check: turn it on and confirm a tap runs the skill in a real terminal.
