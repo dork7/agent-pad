@@ -1,0 +1,15 @@
+[package]
+name = "skills-pad-core"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+description = "Headless core of Skills Pad: skill discovery, the HTTP API, pasting and session status."
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tiny_http = "0.12"
+
+[dev-dependencies]
+tempfile = "3"
+ureq = { version = "2", features = ["json"] }

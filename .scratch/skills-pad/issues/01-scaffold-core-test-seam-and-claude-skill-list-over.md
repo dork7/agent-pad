@@ -4,12 +4,12 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
 **GitHub:** #2
 
-- [ ] Rust toolchain installed and the project builds and tests on macOS
-- [ ] Tests can start a Core on a random port against a temp home directory with fixture skills
-- [ ] A list-skills request returns Claude skills with name and one-line description
-- [ ] Duplicate plugin versions of the same skill appear once, newest version only
-- [ ] The recording Paster and fake clock exist as test fakes for later tickets
+- [x] Rust toolchain installed and the project builds and tests on macOS
+- [x] Tests can start a Core on a random port against a temp home directory with fixture skills
+- [x] A list-skills request returns Claude skills with name and one-line description
+- [x] Duplicate plugin versions of the same skill appear once, newest version only
+- [x] The recording Paster and fake clock exist as test fakes for later tickets
