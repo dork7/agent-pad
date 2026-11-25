@@ -246,6 +246,8 @@ fn handle(state: &State, mut request: Request, token: &str) -> bool {
             (Method::Get, "/skills") => server::json(&state.skills_for_phone(device)).boxed(),
             (Method::Get, "/harnesses") => server::json(&state.harnesses_for_phone(device)).boxed(),
             (Method::Get, "/view") => server::json(&state.view_for_phone(device)).boxed(),
+            (Method::Get, "/snippets") => server::json(&state.snippets_for_phone(device)).boxed(),
+            (Method::Post, "/paste-snippet") => paste_snippet(state, device, &mut request).boxed(),
             (Method::Get, "/sessions") => server::sessions_response(state).boxed(),
             (Method::Get, path) if path.starts_with("/sessions/") => {
                 // TODO: Enforce this Phone's View for ticket routes when sessions are filtered.
@@ -291,6 +293,57 @@ fn paste(state: &State, device: &str, request: &mut Request) -> Response<io::Cur
     #[derive(serde::Deserialize)]
     struct Body {
         id: String,
+        #[serde(default)]
+        preset: Option<String>,
+    }
+    let mut body = String::new();
+    let parsed = request
+        .as_reader()
+        .take(64 * 1024)
+        .read_to_string(&mut body)
+        .ok()
+        .and_then(|_| serde_json::from_str::<Body>(&body).ok());
+    let Some(Body { id, preset }) = parsed else {
+        return server::json_status(
+            400,
+            &serde_json::json!({ "error": "expected {\"id\": ...}" }),
+        );
+    };
+    let result = match &preset {
+        Some(preset) => state.paste_preset_for_phone(device, &id, preset),
+        None => state.paste_for_phone(device, &id).map(|_| ()),
+    };
+    paste_result(result, &id)
+}
+
+fn paste_result(result: Result<(), PasteError>, id: &str) -> Response<io::Cursor<Vec<u8>>> {
+    match result {
+        Ok(()) => server::json_status(200, &serde_json::json!({ "pasted": id })),
+        Err(PasteError::UnknownSkill) => {
+            server::json_status(404, &serde_json::json!({ "error": "unknown skill" }))
+        }
+        Err(PasteError::NotInView) => server::json_status(
+            403,
+            &serde_json::json!({ "error": "not in this phone's view" }),
+        ),
+        Err(PasteError::UnknownPreset) => {
+            server::json_status(404, &serde_json::json!({ "error": "unknown preset" }))
+        }
+        Err(PasteError::UnknownSnippet) => {
+            server::json_status(404, &serde_json::json!({ "error": "unknown snippet" }))
+        }
+    }
+}
+
+/// `POST /paste-snippet` with `{"id": "<snippet id>"}`.
+fn paste_snippet(
+    state: &State,
+    device: &str,
+    request: &mut Request,
+) -> Response<io::Cursor<Vec<u8>>> {
+    #[derive(serde::Deserialize)]
+    struct Body {
+        id: String,
     }
     let mut body = String::new();
     let parsed = request
@@ -305,16 +358,7 @@ fn paste(state: &State, device: &str, request: &mut Request) -> Response<io::Cur
             &serde_json::json!({ "error": "expected {\"id\": ...}" }),
         );
     };
-    match state.paste_for_phone(device, &id) {
-        Ok(skill) => server::json_status(200, &serde_json::json!({ "pasted": skill.id })),
-        Err(PasteError::UnknownSkill) => {
-            server::json_status(404, &serde_json::json!({ "error": "unknown skill" }))
-        }
-        Err(PasteError::NotInView) => server::json_status(
-            403,
-            &serde_json::json!({ "error": "not in this phone's view" }),
-        ),
-    }
+    paste_result(state.paste_snippet_for_phone(device, &id), &id)
 }
 
 fn header(name: &str, value: &str) -> Header {

@@ -4,13 +4,15 @@
 
 **Blocked by:** #5, #10
 
-**Status:** ready-for-agent
+**Status:** in-progress (Core done; phone and Pad UI pending)
 
 **GitHub:** #17
 
 - [ ] Presets are created, edited and deleted in the Pad and are saved in settings
 - [ ] A skill with presets shows them on the phone beside the plain tap; plain tap still pastes the bare Invocation
-- [ ] The pasted text is the Invocation, then the preset text, with a trailing space
-- [ ] The phone sends a skill ID and a preset ID only; arbitrary text is rejected by the Core
+- [x] The pasted text is the Invocation, then the preset text, with a trailing space
+- [x] The phone sends a skill ID and a preset ID only; arbitrary text is rejected by the Core
 - [ ] Deleting a preset removes it from phones live
-- [ ] Presets belong to a skill by harness and name, so they survive rescans
+- [x] Presets belong to a skill by harness and name, so they survive rescans
+
+**Notes:** Skills carry `presets: [{id, text}]` (empty by default). `POST /paste` accepts an optional `preset` ID and pastes `<invocation> <preset> `. Core commands: `list_presets(skill_id)`, `add_preset`, `update_preset` and `delete_preset`, saved in settings. Deleting a preset removes it on the phone's next reload. Still to build: phone buttons and the Pad editor.

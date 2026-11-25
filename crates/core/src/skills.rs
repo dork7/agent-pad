@@ -25,6 +25,8 @@ pub struct Skill {
     pub invocation: String,
     /// ID of the added Skill Directory it was found in, or `None` for built-in locations.
     pub directory: Option<String>,
+    /// Saved argument presets, each a one-tap button on the phone.
+    pub presets: Vec<crate::saved_text::PresetRef>,
 }
 
 /// A Skill Directory the user added, assigned to a Harness.
@@ -80,6 +82,17 @@ pub fn scan(home: &Path, settings: &Settings) -> Vec<Skill> {
     // Stable sort keeps built-in locations ahead of added ones for the same ID.
     skills.sort_by(|a, b| (order(&a.harness), &a.name).cmp(&(order(&b.harness), &b.name)));
     skills.dedup_by(|a, b| a.id == b.id);
+    for skill in &mut skills {
+        skill.presets = settings
+            .presets
+            .iter()
+            .filter(|p| p.skill == skill.id)
+            .map(|p| crate::saved_text::PresetRef {
+                id: p.id.clone(),
+                text: p.text.clone(),
+            })
+            .collect();
+    }
     skills
 }
 
@@ -162,6 +175,7 @@ fn make_skill(
         name,
         description: front.description.unwrap_or_default(),
         directory: directory.map(str::to_string),
+        presets: Vec::new(),
     }
 }
 

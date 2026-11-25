@@ -9,6 +9,7 @@ mod hooks;
 pub mod paste;
 pub mod phones;
 pub mod profiles;
+pub mod saved_text;
 mod server;
 mod sessions;
 pub mod settings;
@@ -29,6 +30,7 @@ pub use hooks::ClaudeHooksPreview;
 pub use paste::{PadWindow, Paster, SystemPaster};
 pub use phones::{Phone, PhoneError};
 pub use profiles::{Profile, ProfileError};
+pub use saved_text::{Preset, PresetRef, Snippet, SNIPPETS_CHIP};
 pub use sessions::{Session, SessionStatus, CLAUDE_HOOKS_RESTART_NOTICE};
 pub use settings::{Settings, SettingsError};
 pub use sharing::SharingInfo;
@@ -71,8 +73,12 @@ pub(crate) struct State {
 pub enum PasteError {
     /// No skill with this ID exists right now.
     UnknownSkill,
-    /// The skill exists but is outside the requesting Phone's View.
+    /// The skill (or snippet) exists but is outside the requesting Phone's View.
     NotInView,
+    /// The skill has no preset with this ID.
+    UnknownPreset,
+    /// No snippet has this ID.
+    UnknownSnippet,
 }
 
 impl State {

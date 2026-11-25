@@ -40,7 +40,9 @@ impl std::fmt::Display for ProfileError {
 impl std::error::Error for ProfileError {}
 
 fn chip_exists(chip: &str, settings: &Settings) -> bool {
-    if let Some(id) = chip.strip_prefix("h:") {
+    if chip == crate::saved_text::SNIPPETS_CHIP {
+        true
+    } else if let Some(id) = chip.strip_prefix("h:") {
         harness::entries(settings).iter().any(|h| h.id == id)
     } else if let Some(id) = chip.strip_prefix("d:") {
         settings.directories.iter().any(|d| d.id == id)

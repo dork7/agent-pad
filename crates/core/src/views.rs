@@ -38,11 +38,15 @@ fn all_chips(skills: &[Skill], settings: &Settings) -> Vec<String> {
         .into_iter()
         .map(|h| harness_chip(&h.id));
     let directories = settings.directories.iter().map(|d| directory_chip(&d.id));
-    harnesses.chain(directories).collect()
+    let snippets =
+        (!settings.snippets.is_empty()).then(|| crate::saved_text::SNIPPETS_CHIP.to_string());
+    harnesses.chain(directories).chain(snippets).collect()
 }
 
 fn known_chip(chip: &str, settings: &Settings) -> bool {
-    if let Some(id) = chip.strip_prefix("h:") {
+    if chip == crate::saved_text::SNIPPETS_CHIP {
+        true
+    } else if let Some(id) = chip.strip_prefix("h:") {
         harness::entries(settings).iter().any(|h| h.id == id)
     } else if let Some(id) = chip.strip_prefix("d:") {
         settings.directories.iter().any(|d| d.id == id)
@@ -174,6 +178,7 @@ mod tests {
             description: String::new(),
             invocation: "x ".into(),
             directory: directory.map(Into::into),
+            presets: Vec::new(),
         }
     }
 

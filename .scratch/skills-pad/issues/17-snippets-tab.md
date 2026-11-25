@@ -4,13 +4,15 @@
 
 **Blocked by:** #10, #12
 
-**Status:** ready-for-agent
+**Status:** in-progress (Core done; phone and Pad UI pending)
 
 **GitHub:** #18
 
 - [ ] Snippets are created, edited, reordered and deleted in the Pad and persist across restarts
 - [ ] A Snippets chip can be dragged onto a phone; phones without it see no Snippets tab
 - [ ] Search on the phone covers snippet titles and text
-- [ ] Tapping a snippet pastes its text exactly as saved (no added trailing space) using the normal paste flow
-- [ ] The phone sends a snippet ID only; unknown IDs and snippets outside the phone's View are rejected
-- [ ] Snippets chip assignments are captured and restored by Profiles
+- [x] Tapping a snippet pastes its text exactly as saved (no added trailing space) using the normal paste flow
+- [x] The phone sends a snippet ID only; unknown IDs and snippets outside the phone's View are rejected
+- [x] Snippets chip assignments are captured and restored by Profiles
+
+**Notes:** Core commands: `list_snippets`, `add_snippet(title, text)`, `update_snippet`, `move_snippet(id, index)` and `delete_snippet`, saved in settings. The `snippets` chip works with Views and Profiles like any other chip, and a View of `null` includes it. Phone endpoints: `GET /snippets` (empty if the chip is missing) and `POST /paste-snippet {id}`, which pastes the text exactly as saved, with 403 outside the View and 404 for an unknown ID. Still to build: the phone Snippets tab with search, and the Pad editor.

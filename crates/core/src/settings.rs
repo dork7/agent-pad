@@ -36,6 +36,10 @@ pub struct Settings {
     pub active_profile: Option<String>,
     /// Project-relative ticket pattern. None uses the Core default.
     pub ticket_pattern: Option<String>,
+    /// Argument presets on skills.
+    pub presets: Vec<crate::saved_text::Preset>,
+    /// Snippets, in display order.
+    pub snippets: Vec<crate::saved_text::Snippet>,
     /// "Implement" templates per Harness ID; `{path}` is the Ticket's path.
     pub implement_templates: std::collections::BTreeMap<String, String>,
 }
@@ -100,6 +104,10 @@ pub enum SettingsError {
     HarnessInUse,
     /// An implement template must contain `{path}`.
     TemplateWithoutPath,
+    /// A preset or snippet needs some text.
+    EmptyText,
+    /// No preset or snippet has this ID.
+    UnknownItem,
     InvalidTicketPattern,
     /// Saving the settings file failed.
     Io(String),
@@ -116,6 +124,8 @@ impl std::fmt::Display for SettingsError {
             Self::TemplateWithoutName => "The template must contain {name}.",
             Self::HarnessInUse => "Move or remove its skill directories first.",
             Self::TemplateWithoutPath => "The template must contain {path}.",
+            Self::EmptyText => "Enter some text.",
+            Self::UnknownItem => "That item no longer exists.",
             Self::InvalidTicketPattern => {
                 "Choose a project-relative ticket pattern without parent components."
             }
