@@ -51,8 +51,13 @@ fn handle(state: &State, mut request: Request) {
     let response = match (request.method(), path.as_str()) {
         (Method::Get, "/skills") => skills_response(state),
         (Method::Get, "/harnesses") => harnesses_response(state),
-        (Method::Get, "/sessions") => sessions_response(state),
-        (Method::Post, "/hooks/claude") => hooks::receive(state, &mut request),
+        (Method::Get, "/sessions") => json(&state.list_sessions()),
+        (Method::Post, "/hooks/claude") => {
+            hooks::receive(state, &mut request, hooks::Harness::Claude)
+        }
+        (Method::Post, "/hooks/codex") => {
+            hooks::receive(state, &mut request, hooks::Harness::Codex)
+        }
         _ => Response::from_string("not found").with_status_code(404),
     };
     let _ = request.respond(response);
@@ -64,10 +69,6 @@ pub(crate) fn skills_response(state: &State) -> Response<io::Cursor<Vec<u8>>> {
 
 pub(crate) fn harnesses_response(state: &State) -> Response<io::Cursor<Vec<u8>>> {
     json(&state.harnesses())
-}
-
-pub(crate) fn sessions_response(state: &State) -> Response<io::Cursor<Vec<u8>>> {
-    json(&state.list_sessions())
 }
 
 pub(crate) fn json_status<T: serde::Serialize>(

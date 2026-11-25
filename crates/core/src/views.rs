@@ -1,14 +1,14 @@
-//! Views: which skills each Phone may see.
+//! Views: which skills and sessions each Phone may see.
 //!
 //! A View is either everything (`None`, the default for new Phones, which also covers
 //! harnesses and directories added later) or a list of chips: `h:<harness id>` gives all of
 //! a harness's skills, including added directories assigned to it; `d:<directory id>` gives
-//! only that added directory's skills. An empty list shows nothing.
+//! only that added directory's skills. Only harness chips select sessions. An empty list shows nothing.
 
 use crate::harness::Harness;
 use crate::phones::PhoneError;
 use crate::skills::{self, Skill};
-use crate::{harness, PasteError, Settings, State};
+use crate::{harness, PasteError, Session, Settings, State};
 
 /// Chip for a harness.
 pub fn harness_chip(id: &str) -> String {
@@ -72,6 +72,24 @@ impl State {
         skills::scan(&self.home, &settings)
             .into_iter()
             .filter(|s| sees(view.as_deref(), s))
+            .collect()
+    }
+
+    /// Sessions from the harnesses in this Phone's current View.
+    pub(crate) fn sessions_for_phone(&self, device_id: &str) -> Vec<Session> {
+        let settings = self.settings.lock().unwrap();
+        let Some(phone) = settings.phones.iter().find(|p| p.id == device_id) else {
+            return Vec::new();
+        };
+        self.list_sessions()
+            .into_iter()
+            .filter(|session| {
+                phone.view.as_ref().is_none_or(|chips| {
+                    chips
+                        .iter()
+                        .any(|chip| chip.strip_prefix("h:") == Some(&session.harness))
+                })
+            })
             .collect()
     }
 

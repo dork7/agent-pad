@@ -1,4 +1,4 @@
-//! Claude Code command hooks forward stdin to the loopback listener. After consent,
+//! Claude Code and Codex command hooks forward stdin to the loopback listener. After consent,
 //! Core publishes its PID and current port atomically in the OS config directory
 //! under the configured home. The command checks the PID, bypasses proxies and curl
 //! config, and exits quietly with a short timeout. Core removes its discovery file on
@@ -20,6 +20,9 @@ use tiny_http::{Request, Response};
 
 use crate::{server, sessions::Event, Core, State};
 
+mod codex;
+pub use codex::{CodexHooksPreview, CODEX_HOOKS_RESTART_NOTICE};
+
 // Event names, matchers and stdin fields: https://code.claude.com/docs/en/hooks
 const EVENTS: &[(&str, Option<&str>)] = &[
     ("SessionStart", Some("startup|resume|clear|fork")),
@@ -33,8 +36,30 @@ const EVENTS: &[(&str, Option<&str>)] = &[
     ("SessionEnd", None),
 ];
 
+#[derive(Clone, Copy)]
+pub(crate) enum Harness {
+    Claude,
+    Codex,
+}
+
+impl Harness {
+    fn id(self) -> &'static str {
+        match self {
+            Self::Claude => "claude",
+            Self::Codex => "codex",
+        }
+    }
+
+    fn name(self) -> &'static str {
+        match self {
+            Self::Claude => "Claude Code",
+            Self::Codex => "Codex",
+        }
+    }
+}
+
 #[derive(Deserialize)]
-struct ClaudeEvent {
+struct HookEvent {
     session_id: String,
     cwd: PathBuf,
     hook_event_name: String,
@@ -43,7 +68,11 @@ struct ClaudeEvent {
     is_interrupt: Option<bool>,
 }
 
-pub(crate) fn receive(state: &State, request: &mut Request) -> Response<io::Cursor<Vec<u8>>> {
+pub(crate) fn receive(
+    state: &State,
+    request: &mut Request,
+    harness: Harness,
+) -> Response<io::Cursor<Vec<u8>>> {
     if !is_loopback(request.remote_addr().copied()) {
         return server::json_status(403, &json!({"error": "loopback required"}));
     }
@@ -74,10 +103,28 @@ pub(crate) fn receive(state: &State, request: &mut Request) -> Response<io::Curs
     if body.len() as u64 > MAX_BODY {
         return server::json_status(413, &json!({"error": "hook event too large"}));
     }
-    let Ok(payload) = serde_json::from_slice::<ClaudeEvent>(&body) else {
-        return server::json_status(400, &json!({"error": "invalid Claude Code hook event"}));
+    let Ok(payload) = serde_json::from_slice::<HookEvent>(&body) else {
+        let error = format!("invalid {} hook event", harness.name());
+        return server::json_status(400, &json!({"error": error}));
     };
-    let event = match payload.hook_event_name.as_str() {
+    let event = match harness {
+        Harness::Claude => claude_event(&payload),
+        Harness::Codex => codex::event(&payload),
+    };
+    if let Some(event) = event {
+        state.sessions.lock().unwrap().record(
+            harness.id(),
+            payload.session_id,
+            payload.cwd,
+            event,
+            state.clock.now(),
+        );
+    }
+    Response::from_data(Vec::new()).with_status_code(204)
+}
+
+fn claude_event(payload: &HookEvent) -> Option<Event> {
+    match payload.hook_event_name.as_str() {
         "SessionStart" if payload.source.as_deref() != Some("compact") => Some(Event::Start),
         "UserPromptSubmit" | "PostToolUse" => Some(Event::Working),
         "PreToolUse" => Some(Event::ToolStarted),
@@ -90,17 +137,11 @@ pub(crate) fn receive(state: &State, request: &mut Request) -> Response<io::Curs
         "Stop" => Some(Event::Stop),
         "SessionEnd" => Some(Event::End),
         _ => None,
-    };
-    if let Some(event) = event {
-        state.sessions.lock().unwrap().record(
-            "claude",
-            payload.session_id,
-            payload.cwd,
-            event,
-            state.clock.now(),
-        );
     }
-    Response::from_data(Vec::new()).with_status_code(204)
+}
+
+fn shell_quote(text: &str) -> String {
+    format!("'{}'", text.replace('\'', "'\\''"))
 }
 
 fn is_loopback(peer: Option<SocketAddr>) -> bool {
@@ -120,19 +161,23 @@ pub struct ClaudeHooksPreview {
 #[derive(Serialize, Deserialize)]
 struct Receipt {
     install_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    path: Option<PathBuf>,
     before: Option<String>,
     after: String,
 }
 
 pub(crate) struct Listener {
     directory: PathBuf,
+    harness: Harness,
     port: u16,
 }
 
 impl Listener {
-    pub(crate) fn new(home: &Path, port: u16) -> io::Result<Self> {
+    pub(crate) fn new(home: &Path, port: u16, harness: Harness) -> io::Result<Self> {
         let listener = Self {
             directory: std::path::absolute(crate::settings::config_dir(home))?,
+            harness,
             port,
         };
         if listener.receipt_path().try_exists()? {
@@ -145,11 +190,13 @@ impl Listener {
     }
 
     fn discovery_path(&self) -> PathBuf {
-        self.directory.join("claude-listener")
+        self.directory
+            .join(format!("{}-listener", self.harness.id()))
     }
 
     fn receipt_path(&self) -> PathBuf {
-        self.directory.join("claude-hooks.json")
+        self.directory
+            .join(format!("{}-hooks.json", self.harness.id()))
     }
 
     fn lock(&self) -> io::Result<File> {
@@ -158,7 +205,10 @@ impl Listener {
             .write(true)
             .create(true)
             .truncate(false)
-            .open(self.directory.join("claude-hooks.lock"))?;
+            .open(
+                self.directory
+                    .join(format!("{}-hooks.lock", self.harness.id())),
+            )?;
         lock.lock()?;
         Ok(lock)
     }
@@ -179,16 +229,39 @@ impl Listener {
                 "hook discovery path must be UTF-8",
             )
         })?;
-        let path = format!("'{}'", path.replace('\'', "'\\''"));
+        let path = shell_quote(path);
+        let harness = self.harness.id();
         Ok(format!(
             "if [ -f {path} ] && IFS=' ' read -r pid port < {path}; then \
              case \"$pid:$port\" in *[!0-9:]*|:*|*:) exit 0;; esac; \
              if kill -0 \"$pid\"; then \
              curl -q --silent --noproxy '*' --max-time 0.5 \
              -H 'Content-Type: application/json' --data-binary @- \
-             \"http://127.0.0.1:$port/hooks/claude\"; fi; fi >/dev/null 2>&1; \
+             \"http://127.0.0.1:$port/hooks/{harness}\"; fi; fi >/dev/null 2>&1; \
              exit 0 # skills-pad-{install_id}"
         ))
+    }
+
+    fn install_id(&self) -> io::Result<String> {
+        if let Some(receipt) = self.receipt()? {
+            return Ok(receipt.install_id);
+        }
+        let mut bytes = [0; 16];
+        getrandom::fill(&mut bytes).map_err(io::Error::other)?;
+        Ok(format!("{:032x}", u128::from_be_bytes(bytes)))
+    }
+
+    fn save_receipt(&self, receipt: &Receipt) -> io::Result<()> {
+        let bytes = serde_json::to_vec(receipt).map_err(io::Error::other)?;
+        write_atomic(&self.receipt_path(), &bytes)
+    }
+
+    fn clear_installation(&self) -> io::Result<()> {
+        // Stop forwarding from processes still using a previously loaded config.
+        if self.discovery_path().try_exists()? {
+            fs::remove_file(self.discovery_path())?;
+        }
+        fs::remove_file(self.receipt_path())
     }
 
     fn receipt(&self) -> io::Result<Option<Receipt>> {
@@ -216,15 +289,7 @@ impl Drop for Listener {
 impl Core {
     /// Compute the exact install change without writing files.
     pub fn preview_claude_hooks(&self) -> io::Result<ClaudeHooksPreview> {
-        let install_id = match self.hook_listener.receipt()? {
-            Some(receipt) => receipt.install_id,
-            None => {
-                let mut bytes = [0; 16];
-                getrandom::fill(&mut bytes).map_err(io::Error::other)?;
-                format!("{:032x}", u128::from_be_bytes(bytes))
-            }
-        };
-        self.claude_hooks_preview(install_id)
+        self.claude_hooks_preview(self.hook_listener.install_id()?)
     }
 
     fn claude_hooks_preview(&self, install_id: String) -> io::Result<ClaudeHooksPreview> {
@@ -268,11 +333,11 @@ impl Core {
         if receipt.is_none() {
             let receipt = Receipt {
                 install_id: preview.install_id.clone(),
+                path: None,
                 before: preview.before.clone(),
                 after: preview.after.clone(),
             };
-            let bytes = serde_json::to_vec(&receipt).map_err(io::Error::other)?;
-            write_atomic(&listener.receipt_path(), &bytes)?;
+            listener.save_receipt(&receipt)?;
         }
         if preview.before.as_deref() != Some(preview.after.as_str()) {
             write_atomic(&settings_target(&preview.path)?, preview.after.as_bytes())?;
@@ -306,12 +371,7 @@ impl Core {
                 }
             }
         }
-        // Stop forwarding even if an older Claude Code process still runs the hook.
-        if listener.discovery_path().try_exists()? {
-            fs::remove_file(listener.discovery_path())?;
-        }
-        fs::remove_file(listener.receipt_path())?;
-        Ok(())
+        listener.clear_installation()
     }
 }
 

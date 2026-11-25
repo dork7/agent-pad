@@ -246,7 +246,7 @@ fn handle(state: &State, mut request: Request, token: &str) -> bool {
             (Method::Get, "/skills") => server::json(&state.skills_for_phone(device)).boxed(),
             (Method::Get, "/harnesses") => server::json(&state.harnesses_for_phone(device)).boxed(),
             (Method::Get, "/view") => server::json(&state.view_for_phone(device)).boxed(),
-            (Method::Get, "/sessions") => server::sessions_response(state).boxed(),
+            (Method::Get, "/sessions") => server::json(&state.sessions_for_phone(device)).boxed(),
             (Method::Post, "/paste") => paste(state, device, &mut request).boxed(),
             (Method::Post, "/heartbeat") => Response::empty(204).boxed(),
             _ => Response::from_string("not found")
