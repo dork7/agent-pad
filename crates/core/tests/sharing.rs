@@ -45,7 +45,12 @@ fn pairing_cookie(info: &SharingInfo) -> String {
         response.header("Content-Type"),
         Some("text/html; charset=utf-8")
     );
-    let set_cookie = response.header("Set-Cookie").unwrap().to_string();
+    let set_cookie = response
+        .all("Set-Cookie")
+        .into_iter()
+        .find(|c| c.starts_with("skills_pad_token="))
+        .unwrap()
+        .to_string();
     assert!(set_cookie.contains("Path=/"));
     assert!(set_cookie.contains("HttpOnly"));
     assert!(response

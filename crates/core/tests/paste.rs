@@ -38,11 +38,15 @@ struct Phone {
 }
 
 impl Phone {
-    /// Scans the QR code: opens the token URL and keeps the cookie.
+    /// Scans the QR code: opens the token URL and keeps the cookies (token and device ID).
     fn pair(info: &SharingInfo) -> Phone {
         let response = ureq::get(&info.url).call().unwrap();
-        let cookie = response.header("Set-Cookie").unwrap();
-        let cookie = cookie.split(';').next().unwrap().to_string();
+        let cookie = response
+            .all("Set-Cookie")
+            .iter()
+            .map(|c| c.split(';').next().unwrap())
+            .collect::<Vec<_>>()
+            .join("; ");
         Phone {
             base: format!("http://{}", SocketAddr::new(info.address, info.port)),
             cookie,

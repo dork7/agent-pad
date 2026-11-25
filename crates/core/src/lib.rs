@@ -6,6 +6,7 @@
 pub mod clock;
 pub mod harness;
 pub mod paste;
+pub mod phones;
 mod server;
 pub mod settings;
 mod sharing;
@@ -20,6 +21,7 @@ use std::sync::{Arc, Mutex, RwLock};
 pub use clock::{Clock, SystemClock};
 pub use harness::Harness;
 pub use paste::{PadWindow, Paster, SystemPaster};
+pub use phones::{Phone, PhoneError};
 pub use settings::Settings;
 pub use sharing::SharingInfo;
 pub use skills::Skill;
@@ -47,6 +49,7 @@ pub(crate) struct State {
     pub pad: Arc<RwLock<Arc<dyn PadWindow>>>,
     pub pastes: paste::PasteQueue,
     pub settings: Mutex<Settings>,
+    pub phones: Mutex<phones::Runtime>,
 }
 
 /// Why a paste request was refused.
@@ -77,6 +80,7 @@ impl Core {
         let settings = Mutex::new(settings::load(&config.home));
         let state = Arc::new(State {
             settings,
+            phones: Default::default(),
             home: config.home,
             clock: config.clock,
             pastes: paste::PasteQueue::start(config.paster, pad.clone()),
@@ -131,5 +135,30 @@ impl Core {
         let mut settings = self.state.settings.lock().unwrap();
         settings.send_enter = on;
         settings::save(&self.state.home, &settings)
+    }
+
+    /// Known Phones with name, online state, last seen and View.
+    pub fn list_phones(&self) -> Vec<Phone> {
+        self.state.list_phones()
+    }
+
+    /// Renames a Phone. Empty names are ignored.
+    pub fn rename_phone(&self, id: &str, name: &str) -> Result<(), PhoneError> {
+        let name = name.trim().to_string();
+        self.state.update_phone(id, |p| {
+            if !name.is_empty() {
+                p.name = name;
+            }
+        })
+    }
+
+    /// Shuts a Phone out until it scans the QR code again. Its saved View is kept.
+    pub fn disconnect_phone(&self, id: &str) -> Result<(), PhoneError> {
+        self.state.disconnect_phone(id)
+    }
+
+    /// Deletes a Phone and its saved View, and shuts it out until it scans again.
+    pub fn forget_phone(&self, id: &str) -> Result<(), PhoneError> {
+        self.state.forget_phone(id)
     }
 }
