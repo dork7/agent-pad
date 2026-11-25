@@ -80,6 +80,9 @@ Skills Pad is a Rust desktop app for macOS and Windows. A global hotkey or statu
 70. As a developer, I want a phone's View to filter Sessions by Harness as well as skills, so that each phone shows a coherent slice.
 71. As a developer, I want Status shown in the Pad as well as on the phone, so that I can check at the desk.
 72. As a developer, I want sessions that started before hooks were installed to appear once they restart, so that I understand why one is missing.
+73. As a developer, I want to tap any Session card and choose "Pending tickets", so that I can see what work is left in that agent's project.
+74. As a developer, I want each pending Ticket shown with its title, status and checklist progress, so that I can judge what to hand the agent next.
+75. As a developer, I want the ticket folder pattern to be configurable, so that projects with a different layout still work.
 
 ## Implementation Decisions
 
@@ -95,6 +98,7 @@ Skills Pad is a Rust desktop app for macOS and Windows. A global hotkey or statu
 - **Platform behavior:** macOS requires Accessibility permission; the Pad detects its absence, guides the user to System Settings and blocks sharing until granted. Windows shows a firewall prompt the first time and the Pad explains it. Start-at-login is an optional toggle, off by default.
 - **Config:** a JSON file in the OS config directory stores added directories, custom Harnesses, templates, hotkey, network override, Phones, Profiles and the stuck threshold.
 - **Session status (slice 5):** the app installs a small hook command that forwards Claude Code and Codex lifecycle events (session start, prompt submitted, before and after tool use, permission requested or notification, stop, interrupt, session end) to a local-only listener. Status is derived: working after a prompt or tool event until stop; needs input on a permission event; idle after stop; ended on session end; stuck when working with no events for the threshold (default 5 minutes). There is no true percentage progress; the "bar" is a state indicator with elapsed time and tool-call count. Installing hooks edits the user's Claude and Codex config, so it requires explicit consent, shows the change first, and supports one-click removal. Cursor, Gemini CLI, OpenCode and Copilot are not covered until their hook support is verified.
+- **Pending tickets:** a Session card offers "Pending tickets" for its project folder. Tickets are Markdown files matched by a configurable pattern (default `.scratch/*/issues/*.md`). They are read on every request and never cached. A Ticket is pending unless its `**Status:**` is done, closed or wontfix. The phone sends a Session ID only, and the Core resolves the folder, so arbitrary paths are never read.
 - **Build order:** (1) scan and list skills; (2) phone page and paste on macOS; (3) Windows paste; (4) multi-phone Views and Profiles; (5) Session status.
 
 ## Testing Decisions

@@ -48,6 +48,10 @@ _Avoid_: Agent, process, run
 A session's current state: working, needs input, idle, stuck, or ended. Stuck means working with no events for a set time.
 _Avoid_: Progress, health
 
+**Ticket**:
+A Markdown file in a project's ticket folder that describes one piece of work, with a status and a checklist. Pending unless its status is done, closed or wontfix.
+_Avoid_: Issue, task, card
+
 **Pad**:
 The desktop window and status-bar icon of Skills Pad, summoned by a hotkey, used for pairing and settings.
 _Avoid_: Panel, dashboard
