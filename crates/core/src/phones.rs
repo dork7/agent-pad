@@ -49,6 +49,8 @@ pub struct Phone {
 pub enum PhoneError {
     /// No known Phone has this ID.
     UnknownPhone,
+    /// A View chip that names no harness or added directory.
+    UnknownChip,
 }
 
 /// In-memory Phone state that is not saved.

@@ -56,6 +56,7 @@ pub fn list_phones(core: State<'_, Core>) -> Vec<Phone> {
 fn phone_error(error: PhoneError) -> String {
     match error {
         PhoneError::UnknownPhone => "That phone is no longer known.".into(),
+        PhoneError::UnknownChip => "That harness or directory no longer exists.".into(),
     }
 }
 

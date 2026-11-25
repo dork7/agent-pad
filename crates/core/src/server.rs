@@ -77,7 +77,7 @@ pub(crate) fn json_status<T: serde::Serialize>(
     json(value).with_status_code(status)
 }
 
-fn json<T: serde::Serialize>(value: &T) -> Response<io::Cursor<Vec<u8>>> {
+pub(crate) fn json<T: serde::Serialize>(value: &T) -> Response<io::Cursor<Vec<u8>>> {
     let body = serde_json::to_vec(value).expect("serializable");
     let header = Header::from_bytes("Content-Type", "application/json").expect("valid header");
     Response::from_data(body).with_header(header)

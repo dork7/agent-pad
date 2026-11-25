@@ -227,22 +227,27 @@ fn handle(state: &State, mut request: Request, token: &str) -> bool {
 
     let admission = (from_url || from_cookie)
         .then(|| state.admit_phone(device_cookie.as_deref(), from_url, &user_agent));
-    let (authenticated, new_device) = match &admission {
+    let (device, new_device) = match &admission {
         Some(Admission::Admitted {
             device_id,
             new_cookie,
-        }) => (true, new_cookie.then(|| device_id.clone())),
-        _ => (false, None),
+        }) => (
+            Some(device_id.clone()),
+            new_cookie.then(|| device_id.clone()),
+        ),
+        _ => (None, None),
     };
-    let mut response = if authenticated {
+    let authenticated = device.is_some();
+    let mut response = if let Some(device) = &device {
         match (request.method(), path) {
             (Method::Get, "/") => Response::from_string(PHONE_PAGE)
                 .with_header(header("Content-Type", "text/html; charset=utf-8"))
                 .boxed(),
-            (Method::Get, "/skills") => server::skills_response(state).boxed(),
-            (Method::Get, "/harnesses") => server::harnesses_response(state).boxed(),
+            (Method::Get, "/skills") => server::json(&state.skills_for_phone(device)).boxed(),
+            (Method::Get, "/harnesses") => server::json(&state.harnesses_for_phone(device)).boxed(),
+            (Method::Get, "/view") => server::json(&state.view_for_phone(device)).boxed(),
             (Method::Get, "/sessions") => server::sessions_response(state).boxed(),
-            (Method::Post, "/paste") => paste(state, &mut request).boxed(),
+            (Method::Post, "/paste") => paste(state, device, &mut request).boxed(),
             (Method::Post, "/heartbeat") => Response::empty(204).boxed(),
             _ => Response::from_string("not found")
                 .with_status_code(404)
@@ -274,7 +279,7 @@ fn handle(state: &State, mut request: Request, token: &str) -> bool {
 }
 
 /// `POST /paste` with `{"id": "<skill id>"}`. Only an ID is accepted; the Core builds the text.
-fn paste(state: &State, request: &mut Request) -> Response<io::Cursor<Vec<u8>>> {
+fn paste(state: &State, device: &str, request: &mut Request) -> Response<io::Cursor<Vec<u8>>> {
     #[derive(serde::Deserialize)]
     struct Body {
         id: String,
@@ -292,11 +297,15 @@ fn paste(state: &State, request: &mut Request) -> Response<io::Cursor<Vec<u8>>> 
             &serde_json::json!({ "error": "expected {\"id\": ...}" }),
         );
     };
-    match state.paste_skill(&id) {
+    match state.paste_for_phone(device, &id) {
         Ok(skill) => server::json_status(200, &serde_json::json!({ "pasted": skill.id })),
         Err(PasteError::UnknownSkill) => {
             server::json_status(404, &serde_json::json!({ "error": "unknown skill" }))
         }
+        Err(PasteError::NotInView) => server::json_status(
+            403,
+            &serde_json::json!({ "error": "not in this phone's view" }),
+        ),
     }
 }
 

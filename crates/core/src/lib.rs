@@ -14,6 +14,7 @@ pub mod settings;
 mod sharing;
 pub mod skills;
 pub mod testing;
+pub mod views;
 
 use std::io;
 use std::net::SocketAddr;
@@ -63,6 +64,8 @@ pub(crate) struct State {
 pub enum PasteError {
     /// No skill with this ID exists right now.
     UnknownSkill,
+    /// The skill exists but is outside the requesting Phone's View.
+    NotInView,
 }
 
 impl State {
@@ -98,9 +101,14 @@ impl State {
             .into_iter()
             .find(|s| s.id == skill_id)
             .ok_or(PasteError::UnknownSkill)?;
-        let enter = self.settings.lock().unwrap().send_enter;
-        self.pastes.paste(skill.invocation.clone(), enter);
+        self.paste_text(skill.invocation.clone());
         Ok(skill)
+    }
+
+    /// Pastes `text` through the queue, followed by Enter if that setting is on.
+    pub(crate) fn paste_text(&self, text: String) {
+        let enter = self.settings.lock().unwrap().send_enter;
+        self.pastes.paste(text, enter);
     }
 }
 
@@ -324,5 +332,26 @@ impl Core {
             .into_iter()
             .map(|e| (e.id, e.name, e.template))
             .collect()
+    }
+
+    /// Every chip that exists now (`h:<harness>` for harnesses with skills, `d:<directory>`
+    /// for added directories), for the Pad's palette.
+    pub fn list_chips(&self) -> Vec<String> {
+        self.state.chips()
+    }
+
+    /// Replaces a Phone's View: `None` for everything, or a list of chips. Applies live.
+    pub fn set_phone_view(&self, id: &str, view: Option<Vec<String>>) -> Result<(), PhoneError> {
+        self.state.set_view(id, view)
+    }
+
+    /// Adds a chip to a Phone's View (dropping it on the Phone's card).
+    pub fn add_chip_to_phone(&self, id: &str, chip: &str) -> Result<(), PhoneError> {
+        self.state.add_chip(id, chip)
+    }
+
+    /// Removes a chip from a Phone's View (its ×).
+    pub fn remove_chip_from_phone(&self, id: &str, chip: &str) -> Result<(), PhoneError> {
+        self.state.remove_chip(id, chip)
     }
 }
