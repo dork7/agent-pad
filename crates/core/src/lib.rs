@@ -14,11 +14,11 @@ pub mod testing;
 use std::io;
 use std::net::SocketAddr;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 pub use clock::{Clock, SystemClock};
 pub use harness::Harness;
-pub use paste::Paster;
+pub use paste::{PadWindow, Paster, SystemPaster};
 pub use sharing::SharingInfo;
 pub use skills::Skill;
 
@@ -41,17 +41,40 @@ pub struct Core {
 
 pub(crate) struct State {
     pub home: PathBuf,
-    #[allow(dead_code)] // used from ticket 04 (paste) on
-    pub paster: Arc<dyn Paster>,
     pub clock: Arc<dyn Clock>,
+    pub pad: Arc<RwLock<Arc<dyn PadWindow>>>,
+    pub pastes: paste::PasteQueue,
+}
+
+/// Why a paste request was refused.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PasteError {
+    /// No skill with this ID exists right now.
+    UnknownSkill,
+}
+
+impl State {
+    /// Builds the Invocation for `skill_id` from a fresh scan and pastes it, waiting until the
+    /// paste is done. The phone only ever sends an ID, so arbitrary text is never pasted.
+    pub fn paste_skill(&self, skill_id: &str) -> Result<Skill, PasteError> {
+        let skill = skills::scan(&self.home)
+            .into_iter()
+            .find(|s| s.id == skill_id)
+            .ok_or(PasteError::UnknownSkill)?;
+        self.pastes.paste(skill.invocation.clone());
+        Ok(skill)
+    }
 }
 
 impl Core {
     pub fn start(config: CoreConfig) -> io::Result<Core> {
+        let pad: Arc<RwLock<Arc<dyn PadWindow>>> =
+            Arc::new(RwLock::new(Arc::new(paste::NoPadWindow)));
         let state = Arc::new(State {
             home: config.home,
-            paster: config.paster,
             clock: config.clock,
+            pastes: paste::PasteQueue::start(config.paster, pad.clone()),
+            pad,
         });
         let server = server::start(state.clone())?;
         Ok(Core {
@@ -79,5 +102,16 @@ impl Core {
     /// Harness chips with at least one skill, rescanned on every call.
     pub fn list_harnesses(&self) -> Vec<Harness> {
         skills::harnesses(&skills::scan(&self.state.home))
+    }
+
+    /// Registers the Pad window so the paste flow can hide it before pasting.
+    pub fn set_pad_window(&self, pad: Arc<dyn PadWindow>) {
+        *self.state.pad.write().unwrap() = pad;
+    }
+
+    /// Pastes the Invocation of `skill_id` at the cursor of the focused app, as a phone tap
+    /// does. Returns the pasted skill.
+    pub fn paste_skill(&self, skill_id: &str) -> Result<Skill, PasteError> {
+        self.state.paste_skill(skill_id)
     }
 }

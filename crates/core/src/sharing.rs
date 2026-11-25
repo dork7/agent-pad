@@ -1,6 +1,6 @@
 //! The on-demand HTTP server for Phones.
 
-use std::io;
+use std::io::{self, Read};
 use std::net::{IpAddr, SocketAddr, UdpSocket};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Weak};
@@ -11,11 +11,14 @@ use qrcode::{render::svg, QrCode};
 use serde::Serialize;
 use tiny_http::{Header, Method, Request, Response, Server};
 
-use crate::{server, Core, State};
+use crate::{server, Core, PasteError, State};
 
 const IDLE_TIMEOUT: Duration = Duration::from_secs(15 * 60);
 const IDLE_POLL_INTERVAL: Duration = Duration::from_secs(1);
 const TOKEN_COOKIE: &str = "skills_pad_token";
+
+/// The phone page, embedded in the binary.
+const PHONE_PAGE: &str = include_str!("phone.html");
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct SharingInfo {
@@ -180,7 +183,7 @@ fn serve(
     }
 }
 
-fn handle(state: &State, request: Request, token: &str) -> bool {
+fn handle(state: &State, mut request: Request, token: &str) -> bool {
     let (path, query) = request.url().split_once('?').unwrap_or((request.url(), ""));
     let from_url = query
         .split('&')
@@ -195,13 +198,12 @@ fn handle(state: &State, request: Request, token: &str) -> bool {
     let authenticated = from_url || from_cookie;
     let mut response = if authenticated {
         match (request.method(), path) {
-            (Method::Get, "/") => Response::from_string(
-                "<!doctype html><html lang=\"en\"><meta charset=\"utf-8\">\
-                 <title>Skills Pad</title><h1>Skills Pad</h1></html>",
-            )
-            .with_header(header("Content-Type", "text/html; charset=utf-8"))
-            .boxed(),
+            (Method::Get, "/") => Response::from_string(PHONE_PAGE)
+                .with_header(header("Content-Type", "text/html; charset=utf-8"))
+                .boxed(),
             (Method::Get, "/skills") => server::skills_response(state).boxed(),
+            (Method::Get, "/harnesses") => server::harnesses_response(state).boxed(),
+            (Method::Post, "/paste") => paste(state, &mut request).boxed(),
             (Method::Post, "/heartbeat") => Response::empty(204).boxed(),
             _ => Response::from_string("not found")
                 .with_status_code(404)
@@ -222,6 +224,33 @@ fn handle(state: &State, request: Request, token: &str) -> bool {
     response.add_header(header("Referrer-Policy", "no-referrer"));
     let _ = request.respond(response);
     authenticated
+}
+
+/// `POST /paste` with `{"id": "<skill id>"}`. Only an ID is accepted; the Core builds the text.
+fn paste(state: &State, request: &mut Request) -> Response<io::Cursor<Vec<u8>>> {
+    #[derive(serde::Deserialize)]
+    struct Body {
+        id: String,
+    }
+    let mut body = String::new();
+    let parsed = request
+        .as_reader()
+        .take(64 * 1024)
+        .read_to_string(&mut body)
+        .ok()
+        .and_then(|_| serde_json::from_str::<Body>(&body).ok());
+    let Some(Body { id }) = parsed else {
+        return server::json_status(
+            400,
+            &serde_json::json!({ "error": "expected {\"id\": ...}" }),
+        );
+    };
+    match state.paste_skill(&id) {
+        Ok(skill) => server::json_status(200, &serde_json::json!({ "pasted": skill.id })),
+        Err(PasteError::UnknownSkill) => {
+            server::json_status(404, &serde_json::json!({ "error": "unknown skill" }))
+        }
+    }
 }
 
 fn header(name: &str, value: &str) -> Header {

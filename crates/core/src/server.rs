@@ -50,7 +50,7 @@ fn handle(state: &State, request: Request) {
     let path = request.url().split('?').next().unwrap_or("").to_string();
     let response = match (request.method(), path.as_str()) {
         (Method::Get, "/skills") => skills_response(state),
-        (Method::Get, "/harnesses") => json(&skills::harnesses(&skills::scan(&state.home))),
+        (Method::Get, "/harnesses") => harnesses_response(state),
         _ => Response::from_string("not found").with_status_code(404),
     };
     let _ = request.respond(response);
@@ -58,6 +58,17 @@ fn handle(state: &State, request: Request) {
 
 pub(crate) fn skills_response(state: &State) -> Response<io::Cursor<Vec<u8>>> {
     json(&skills::scan(&state.home))
+}
+
+pub(crate) fn harnesses_response(state: &State) -> Response<io::Cursor<Vec<u8>>> {
+    json(&skills::harnesses(&skills::scan(&state.home)))
+}
+
+pub(crate) fn json_status<T: serde::Serialize>(
+    status: u16,
+    value: &T,
+) -> Response<io::Cursor<Vec<u8>>> {
+    json(value).with_status_code(status)
 }
 
 fn json<T: serde::Serialize>(value: &T) -> Response<io::Cursor<Vec<u8>>> {

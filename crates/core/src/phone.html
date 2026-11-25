@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Skills Pad</title>
+<style>
+  :root {
+    --bg: #f6f6f4; --surface: #ffffff; --surface-2: #ececea; --text: #1b1b1a; --muted: #6b6b66;
+    --line: #dcdcd7; --accent: #3b5bdb; --accent-text: #ffffff; --error: #c92a2a;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #121212; --surface: #1d1d1c; --surface-2: #2a2a28; --text: #ececea; --muted: #9a9a94;
+      --line: #33332f; --accent: #748ffc; --accent-text: #0d0d0d; --error: #ff6b6b;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); -webkit-tap-highlight-color: transparent; }
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+  main { max-width: 640px; margin: 0 auto; padding: 18px 16px 40px; }
+  h1 { font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 12px; }
+  .search { width: 100%; padding: 16px; border-radius: 16px; border: 2px solid var(--line); background: var(--surface);
+    outline: none; font: inherit; font-size: 20px; color: inherit; }
+  .search:focus { border-color: var(--accent); }
+  .tabs { display: flex; gap: 8px; margin: 12px 0 6px; overflow-x: auto; scrollbar-width: none; }
+  .tabs button { flex: none; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); font-size: 13px; }
+  .tabs button[aria-selected="true"] { background: var(--text); color: var(--bg); border-color: var(--text); }
+  .tabs .n { opacity: .6; margin-left: 4px; font-variant-numeric: tabular-nums; }
+  .row { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; width: 100%; text-align: left; padding: 12px 0;
+    align-items: baseline; border-bottom: 1px solid var(--line); }
+  .row:active { opacity: .6; }
+  .row code { font: 600 15px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--accent); grid-row: span 2; }
+  .row b { font-weight: 500; font-size: 15px; overflow-wrap: anywhere; }
+  .row small { color: var(--muted); font-size: 13px; grid-column: 2; }
+  .empty { text-align: center; padding: 40px 12px; color: var(--muted); }
+  #toast { position: fixed; left: 50%; top: 16px; transform: translate(-50%, -160%); transition: transform .2s; z-index: 50;
+    background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 999px; font-size: 14px; white-space: nowrap; }
+  #toast.show { transform: translate(-50%, 0); }
+  #toast.error { background: var(--error); color: #fff; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Skills Pad</h1>
+  <input id="q" class="search" type="search" placeholder="Search skills" autocomplete="off" aria-label="Search skills">
+  <nav id="tabs" class="tabs" role="tablist" aria-label="Harnesses"></nav>
+  <div id="list" role="list"></div>
+</main>
+<div id="toast" role="status" aria-live="polite"></div>
+<script>
+(() => {
+  const HEARTBEAT_MS = 60 * 1000;
+  let harnesses = [], skills = [], active = null, toastTimer = null;
+  const $ = id => document.getElementById(id);
+  const el = (tag, props = {}, ...children) => {
+    const node = Object.assign(document.createElement(tag), props);
+    node.append(...children);
+    return node;
+  };
+
+  function toast(text, isError) {
+    const t = $('toast');
+    t.textContent = text;
+    t.classList.toggle('error', !!isError);
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), 1400);
+  }
+
+  async function load() {
+    try {
+      const [h, s] = await Promise.all([fetch('/harnesses'), fetch('/skills')]);
+      if (!h.ok || !s.ok) throw new Error(h.status === 401 || s.status === 401 ? 'expired' : 'failed');
+      harnesses = await h.json();
+      skills = await s.json();
+    } catch (e) {
+      $('list').replaceChildren(el('p', { className: 'empty', textContent: e.message === 'expired'
+        ? 'Sharing has stopped. Scan the QR code in the Pad again.'
+        : 'Could not reach the computer. Check that sharing is still on.' }));
+      return;
+    }
+    if (!harnesses.some(x => x.id === active)) active = harnesses[0] ? harnesses[0].id : null;
+    render();
+  }
+
+  function render() {
+    $('tabs').replaceChildren(...harnesses.map(h => el('button', {
+      role: 'tab', ariaSelected: String(h.id === active),
+      onclick: () => { active = h.id; render(); },
+    }, h.name, el('span', { className: 'n', textContent: h.skill_count }))));
+
+    if (!harnesses.length) {
+      $('list').replaceChildren(el('p', { className: 'empty', textContent: 'No skills found on the computer.' }));
+      return;
+    }
+    const q = $('q').value.trim().toLowerCase();
+    const shown = skills.filter(s => s.harness === active &&
+      (!q || s.name.toLowerCase().includes(q) || s.description.toLowerCase().includes(q)));
+    if (!shown.length) {
+      $('list').replaceChildren(el('p', { className: 'empty', textContent: 'No skills match “' + $('q').value + '”.' }));
+      return;
+    }
+    $('list').replaceChildren(...shown.map(s => el('button', {
+      className: 'row', role: 'listitem', onclick: () => paste(s),
+    }, el('code', { textContent: s.invocation.trim() }),
+       el('b', { textContent: s.name }),
+       el('small', { textContent: s.description }))));
+  }
+
+  async function paste(skill) {
+    try {
+      const r = await fetch('/paste', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: skill.id }),
+      });
+      if (r.ok) toast('Pasted ' + skill.invocation.trim());
+      else if (r.status === 404) { toast('That skill is gone', true); load(); }
+      else if (r.status === 401) toast('Sharing has stopped', true);
+      else toast('Paste failed', true);
+    } catch (e) {
+      toast('Could not reach the computer', true);
+    }
+  }
+
+  const heartbeat = () => { if (!document.hidden) fetch('/heartbeat', { method: 'POST' }).catch(() => {}); };
+  setInterval(heartbeat, HEARTBEAT_MS);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { heartbeat(); load(); } });
+  $('q').addEventListener('input', render);
+
+  // Drop the token from the address bar; the cookie carries it from now on.
+  if (location.search.includes('token=')) history.replaceState(null, '', '/');
+  load();
+})();
+</script>
+</body>
+</html>
