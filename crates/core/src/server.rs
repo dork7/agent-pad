@@ -7,7 +7,7 @@ use std::thread::JoinHandle;
 
 use tiny_http::{Header, Method, Request, Response, Server};
 
-use crate::State;
+use crate::{hooks, State};
 
 pub(crate) struct Running {
     pub addr: SocketAddr,
@@ -46,11 +46,13 @@ impl Drop for Running {
     }
 }
 
-fn handle(state: &State, request: Request) {
+fn handle(state: &State, mut request: Request) {
     let path = request.url().split('?').next().unwrap_or("").to_string();
     let response = match (request.method(), path.as_str()) {
         (Method::Get, "/skills") => skills_response(state),
         (Method::Get, "/harnesses") => harnesses_response(state),
+        (Method::Get, "/sessions") => sessions_response(state),
+        (Method::Post, "/hooks/claude") => hooks::receive(state, &mut request),
         _ => Response::from_string("not found").with_status_code(404),
     };
     let _ = request.respond(response);
@@ -62,6 +64,10 @@ pub(crate) fn skills_response(state: &State) -> Response<io::Cursor<Vec<u8>>> {
 
 pub(crate) fn harnesses_response(state: &State) -> Response<io::Cursor<Vec<u8>>> {
     json(&state.harnesses())
+}
+
+pub(crate) fn sessions_response(state: &State) -> Response<io::Cursor<Vec<u8>>> {
+    json(&state.list_sessions())
 }
 
 pub(crate) fn json_status<T: serde::Serialize>(

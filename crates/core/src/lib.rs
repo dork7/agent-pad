@@ -5,9 +5,11 @@
 
 pub mod clock;
 pub mod harness;
+mod hooks;
 pub mod paste;
 pub mod phones;
 mod server;
+mod sessions;
 pub mod settings;
 mod sharing;
 pub mod skills;
@@ -20,8 +22,10 @@ use std::sync::{Arc, Mutex, RwLock};
 
 pub use clock::{Clock, SystemClock};
 pub use harness::{CustomHarness, Harness};
+pub use hooks::ClaudeHooksPreview;
 pub use paste::{PadWindow, Paster, SystemPaster};
 pub use phones::{Phone, PhoneError};
+pub use sessions::{Session, SessionStatus, CLAUDE_HOOKS_RESTART_NOTICE};
 pub use settings::{Settings, SettingsError};
 pub use sharing::SharingInfo;
 pub use skills::{Directory, Skill};
@@ -39,8 +43,9 @@ pub struct CoreConfig {
 /// Dropping it stops both the local API and any active sharing.
 pub struct Core {
     state: Arc<State>,
+    hook_listener: hooks::Listener,
     server: server::Running,
-    sharing: std::sync::Mutex<sharing::Sharing>,
+    sharing: Mutex<sharing::Sharing>,
 }
 
 pub(crate) struct State {
@@ -50,6 +55,7 @@ pub(crate) struct State {
     pub pastes: paste::PasteQueue,
     pub settings: Mutex<Settings>,
     pub phones: Mutex<phones::Runtime>,
+    pub sessions: Mutex<sessions::Sessions>,
 }
 
 /// Why a paste request was refused.
@@ -110,12 +116,15 @@ impl Core {
             clock: config.clock,
             pastes: paste::PasteQueue::start(config.paster, pad.clone()),
             pad,
+            sessions: Default::default(),
         });
         let server = server::start(state.clone())?;
+        let hook_listener = hooks::Listener::new(&state.home, server.addr.port())?;
         Ok(Core {
             state,
             server,
             sharing: Default::default(),
+            hook_listener,
         })
     }
 

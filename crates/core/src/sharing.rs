@@ -241,6 +241,7 @@ fn handle(state: &State, mut request: Request, token: &str) -> bool {
                 .boxed(),
             (Method::Get, "/skills") => server::skills_response(state).boxed(),
             (Method::Get, "/harnesses") => server::harnesses_response(state).boxed(),
+            (Method::Get, "/sessions") => server::sessions_response(state).boxed(),
             (Method::Post, "/paste") => paste(state, &mut request).boxed(),
             (Method::Post, "/heartbeat") => Response::empty(204).boxed(),
             _ => Response::from_string("not found")
