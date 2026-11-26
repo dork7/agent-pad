@@ -2,7 +2,7 @@
 //! Core publishes its PID and current port atomically in the OS config directory
 //! under the configured home. The command checks the PID, bypasses proxies and curl
 //! config, and exits quietly with a short timeout. Core removes its discovery file on
-//! shutdown. TODO: provide a native Windows command for Claude Code without Git Bash.
+//! shutdown. Windows uses PowerShell so hooks do not require Git Bash or curl.
 //!
 //! A private receipt records the original settings text and the identity of Skills
 //! Pad's handlers. Removal can restore the original bytes when untouched and remove
@@ -144,6 +144,54 @@ fn shell_quote(text: &str) -> String {
     format!("'{}'", text.replace('\'', "'\\''"))
 }
 
+fn windows_hook_script(path: &str, harness: &str) -> String {
+    let path = path.replace('\'', "''");
+    format!(
+        "$ErrorActionPreference = 'Stop'; try {{ \
+         $line = [IO.File]::ReadAllText('{path}').Trim(); \
+         if ($line -notmatch '^([0-9]+) ([0-9]+)$') {{ exit 0 }}; \
+         $targetPid = [int]$Matches[1]; $port = [int]$Matches[2]; \
+         if ($port -lt 1 -or $port -gt 65535) {{ exit 0 }}; \
+         Get-Process -Id $targetPid -ErrorAction Stop | Out-Null; \
+         $inputBytes = New-Object IO.MemoryStream; \
+         [Console]::OpenStandardInput().CopyTo($inputBytes); \
+         $handler = New-Object Net.Http.HttpClientHandler; $handler.UseProxy = $false; \
+         $client = [Net.Http.HttpClient]::new($handler); \
+         $client.Timeout = [TimeSpan]::FromMilliseconds(500); \
+         $body = [Net.Http.ByteArrayContent]::new($inputBytes.ToArray()); \
+         $body.Headers.ContentType = [Net.Http.Headers.MediaTypeHeaderValue]::Parse('application/json'); \
+         $response = $client.PostAsync('http://127.0.0.1:' + $port + '/hooks/{harness}', $body).GetAwaiter().GetResult(); \
+         $response.Dispose(); $body.Dispose(); $client.Dispose(); $handler.Dispose(); \
+         }} catch {{ }}"
+    )
+}
+
+fn windows_hook_command(path: &str, harness: &str, install_id: &str) -> String {
+    // -EncodedCommand avoids cmd.exe expanding %, &, and other characters in the home path.
+    let script = windows_hook_script(path, harness);
+    let bytes: Vec<u8> = script.encode_utf16().flat_map(u16::to_le_bytes).collect();
+    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut encoded = String::with_capacity(bytes.len().div_ceil(3) * 4);
+    for chunk in bytes.chunks(3) {
+        let n = ((chunk[0] as u32) << 16)
+            | ((chunk.get(1).copied().unwrap_or(0) as u32) << 8)
+            | chunk.get(2).copied().unwrap_or(0) as u32;
+        encoded.push(ALPHABET[((n >> 18) & 63) as usize] as char);
+        encoded.push(ALPHABET[((n >> 12) & 63) as usize] as char);
+        encoded.push(if chunk.len() > 1 {
+            ALPHABET[((n >> 6) & 63) as usize] as char
+        } else {
+            '='
+        });
+        encoded.push(if chunk.len() > 2 {
+            ALPHABET[(n & 63) as usize] as char
+        } else {
+            '='
+        });
+    }
+    format!("powershell.exe -NoProfile -NonInteractive -EncodedCommand {encoded} >nul 2>&1 & rem skills-pad-{install_id}")
+}
+
 fn is_loopback(peer: Option<SocketAddr>) -> bool {
     peer.is_some_and(|addr| addr.ip().is_loopback())
 }
@@ -229,8 +277,11 @@ impl Listener {
                 "hook discovery path must be UTF-8",
             )
         })?;
-        let path = shell_quote(path);
         let harness = self.harness.id();
+        if cfg!(windows) {
+            return Ok(windows_hook_command(path, harness, install_id));
+        }
+        let path = shell_quote(path);
         // The trailing "skills-pad-<id>" marker keeps its pre-rename spelling on purpose: removal
         // finds hooks by it, including ones installed before the rename to Agent Pad.
         Ok(format!(
@@ -514,5 +565,26 @@ mod tests {
         assert!(is_loopback(Some("[::1]:1234".parse().unwrap())));
         assert!(!is_loopback(Some("192.0.2.1:1234".parse().unwrap())));
         assert!(!is_loopback(None));
+    }
+
+    #[test]
+    fn windows_command_renders_native_forwarder() {
+        let command = windows_hook_command(
+            r"C:\Users\O'Brien & Co\agent-pad\claude-listener",
+            "claude",
+            "abc123",
+        );
+        assert!(command.starts_with("powershell.exe -NoProfile -NonInteractive -EncodedCommand "));
+        assert!(command.ends_with(" >nul 2>&1 & rem skills-pad-abc123"));
+        assert!(!command.contains("curl"));
+        assert!(!command.contains("/bin/sh"));
+        let script =
+            windows_hook_script(r"C:\Users\O'Brien & Co\agent-pad\claude-listener", "claude");
+        assert!(script.contains(r"ReadAllText('C:\Users\O''Brien & Co\agent-pad\claude-listener')"));
+        assert!(script.contains("/hooks/claude"));
+        assert!(script.contains("UseProxy = $false"));
+        assert!(script.contains("FromMilliseconds(500)"));
+        assert!(script.contains("OpenStandardInput().CopyTo($inputBytes)"));
+        assert!(windows_hook_script(r"C:\test\codex-listener", "codex").contains("/hooks/codex"));
     }
 }

@@ -65,9 +65,13 @@ impl Core {
     }
 
     fn codex_hook_command(&self, install_id: &str) -> io::Result<String> {
-        // Codex runs hooks through the configured shell. Use sh for the POSIX forwarder.
+        // Codex runs hooks through the configured shell. Windows uses the native
+        // PowerShell command; other platforms keep the POSIX wrapper.
         // https://github.com/openai/codex/blob/main/codex-rs/hooks/src/engine/command_runner.rs
         let command = self.codex_hook_listener.command(install_id)?;
+        if cfg!(windows) {
+            return Ok(command);
+        }
         Ok(format!("/bin/sh -c {}", shell_quote(&command)))
     }
 
