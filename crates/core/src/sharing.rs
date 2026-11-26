@@ -204,7 +204,8 @@ fn serve(
 }
 
 fn handle(state: &State, mut request: Request, token: &str) -> bool {
-    let (path, query) = request.url().split_once('?').unwrap_or((request.url(), ""));
+    let url = request.url().to_string();
+    let (path, query) = url.split_once('?').unwrap_or((&url, ""));
     let from_url = query
         .split('&')
         .any(|param| param.strip_prefix("token=") == Some(token));
@@ -260,7 +261,11 @@ fn handle(state: &State, mut request: Request, token: &str) -> bool {
             }
             (Method::Post, path) if path.starts_with("/sessions/") => {
                 if sees_session(state, device, path) {
-                    server::implement_response(state, path).boxed()
+                    if path.ends_with("/run") {
+                        server::run_response(state, path, &mut request, Some(device)).boxed()
+                    } else {
+                        server::implement_response(state, path).boxed()
+                    }
                 } else {
                     outside_view().boxed()
                 }

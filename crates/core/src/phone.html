@@ -186,16 +186,6 @@
     </nav>
   </div>
 </div>
-<dialog id="implement-note" class="notice" aria-labelledby="implement-title" aria-describedby="implement-description">
-  <form method="dialog">
-    <h2 id="implement-title">Focus the session’s terminal</h2>
-    <p id="implement-description">The text is pasted into whichever app has focus on the computer — focus that session's terminal first.</p>
-    <div class="detail-actions">
-      <button class="action" value="cancel" autofocus>Cancel</button>
-      <button class="action primary" value="implement">Implement</button>
-    </div>
-  </form>
-</dialog>
 <div id="toast" role="status" aria-live="polite"></div>
 <script>
 (() => {
@@ -239,6 +229,7 @@
     const tabIds = tabs().map(t => t.id);
     if (!tabIds.includes(active)) active = tabIds[0] || null;
     render();
+    if (route.page === 'session') renderSession(route.sid);
   }
 
   const SNIPPETS_TAB = '__snippets';
@@ -340,7 +331,7 @@
   const sessionCards = new Map();
   const palette = { page: 'palette' };
   let route = palette, sessions = null, pollingSessions = false, sessionError = '';
-  let implementConfirmed = false, sendingTicket = false;
+  let sendingTicket = false;
 
   function projectName(path) {
     return path.split(/[\\/]/).filter(Boolean).pop() || path;
@@ -455,11 +446,33 @@
     $('detail-title').textContent = projectName(session.project_folder);
     const meta = sessionMeta(session);
     meta.prepend(harnessIcon(session));
-    body.replaceChildren(meta, el('p', { className: 'project-path', textContent: session.project_folder }));
+    const available = skills.filter(skill => skill.harness === session.harness);
+    body.replaceChildren(meta, el('p', { className: 'project-path', textContent: session.project_folder }),
+      ...available.map(skill => el('div', { className: 'ticket', role: 'listitem' },
+        el('span', {}, el('code', { textContent: skill.invocation.trim() }),
+          el('small', { textContent: skill.description || skill.name })),
+        el('button', { type: 'button', className: 'action primary', textContent: 'Run',
+          disabled: session.status === 'blocked' || session.status === 'ended',
+          onclick: () => runSkill(sid, skill) }))));
     if (!actions.firstElementChild) actions.append(el('button', {
       type: 'button', className: 'action primary', textContent: 'Pending tickets',
       onclick: () => openPage('tickets', sid),
     }));
+  }
+
+  async function runSkill(sid, skill) {
+    buzz(12);
+    try {
+      const response = await fetch(`/sessions/${encodeURIComponent(sid)}/run`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: skill.id }),
+      });
+      if (!response.ok) throw new Error(await responseError(response, 'Could not run the skill.'));
+      toast(`Running ${skill.invocation.trim()} in ${$('detail-title').textContent}`);
+    } catch (error) {
+      buzz([30, 40, 30]);
+      toast(error.message, true);
+    }
   }
 
   function ticketsPath(sid, tid) {
@@ -559,14 +572,6 @@
     if (ticket.blocked || sendingTicket) return;
     setImplementBusy(true);
     try {
-      if (!implementConfirmed) {
-        const note = $('implement-note');
-        note.returnValue = '';
-        note.showModal();
-        await new Promise(resolve => note.addEventListener('close', resolve, { once: true }));
-        if (note.returnValue !== 'implement') return;
-        implementConfirmed = true;
-      }
       buzz(12);
       const response = await fetch(`${ticketsPath(sid, ticket.id)}/implement`, { method: 'POST' });
       if (!response.ok) throw new Error(await responseError(response, 'Could not send the ticket.'));

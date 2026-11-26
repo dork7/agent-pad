@@ -1,6 +1,6 @@
 //! The Core's local HTTP API.
 
-use std::io;
+use std::io::{self, Read};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::thread::JoinHandle;
@@ -9,7 +9,7 @@ use percent_encoding::percent_decode_str;
 use serde_json::json;
 use tiny_http::{Header, Method, Request, Response, Server};
 
-use crate::{hooks, ImplementError, State, TicketError};
+use crate::{hooks, ImplementError, RunError, State, TicketError};
 
 pub(crate) struct Running {
     pub addr: SocketAddr,
@@ -56,6 +56,8 @@ fn handle(state: &State, mut request: Request) {
         (Method::Get, "/sessions") => sessions_response(state),
         (Method::Get, path) if path.starts_with("/sessions/") => tickets_response(state, path)
             .with_header(Header::from_bytes("Cache-Control", "no-store").expect("valid header")),
+        (Method::Post, path) if path.starts_with("/sessions/") && path.ends_with("/run") =>
+            run_response(state, path, &mut request, None),
         (Method::Post, path) if path.starts_with("/sessions/") => implement_response(state, path),
         (Method::Post, "/hooks/claude") => {
             hooks::receive(state, &mut request, hooks::Harness::Claude)
@@ -66,6 +68,33 @@ fn handle(state: &State, mut request: Request) {
         _ => Response::from_string("not found").with_status_code(404),
     };
     let _ = request.respond(response);
+}
+
+pub(crate) fn run_response(state: &State, path: &str, request: &mut Request, device: Option<&str>) -> Response<io::Cursor<Vec<u8>>> {
+    let ["sessions", session, "run"] = path.split('/').filter(|part| !part.is_empty()).collect::<Vec<_>>()[..] else {
+        return json_status(404, &json!({"error": "not found"}));
+    };
+    let Some(session) = decode_segment(session) else {
+        return json_status(404, &json!({"error": "unknown session"}));
+    };
+    #[derive(serde::Deserialize)]
+    struct Body { id: String }
+    let mut body = String::new();
+    let parsed = request.as_reader().take(64 * 1024).read_to_string(&mut body)
+        .ok().and_then(|_| serde_json::from_str::<Body>(&body).ok());
+    let Some(Body { id }) = parsed else {
+        return json_status(400, &json!({"error": "expected skill id"}));
+    };
+    if device.is_some_and(|device| !state.skills_for_phone(device).iter().any(|skill| skill.id == id)) {
+        return json_status(403, &json!({"error": "not in this phone's view"}));
+    }
+    match state.run_skill_in_session(&session, &id) {
+        Ok(skill) => json(&json!({"running": skill.invocation})),
+        Err(RunError::UnknownSession | RunError::UnknownSkill) => json_status(404, &json!({"error": "session or skill not found"})),
+        Err(RunError::WrongHarness) => json_status(409, &json!({"error": "skill does not belong to this session's harness"})),
+        Err(RunError::Blocked) => json_status(409, &json!({"error": "answer the session request first"})),
+        Err(RunError::WindowNotFound) => json_status(409, &json!({"error": "session window was not found"})),
+    }
 }
 
 pub(crate) fn skills_response(state: &State) -> Response<io::Cursor<Vec<u8>>> {
@@ -130,6 +159,9 @@ pub(crate) fn implement_response(state: &State, path: &str) -> Response<io::Curs
         Err(ImplementError::NotPending) => {
             json_status(409, &json!({"error": "this ticket is already done"}))
         }
+        Err(ImplementError::WindowNotFound) => json_status(
+            409, &json!({"error": "session window was not found"}),
+        ),
         Err(ImplementError::Ticket(TicketError::UnknownSession)) => {
             json_status(404, &json!({"error": "unknown session"}))
         }

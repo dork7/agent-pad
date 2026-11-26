@@ -9,7 +9,7 @@ use std::time::Duration;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use serde_json::{json, Value};
 use agent_pad_core::testing::{FakeClock, Recorded, RecordingPaster};
-use agent_pad_core::{Core, CoreConfig, SettingsError};
+use agent_pad_core::{Core, CoreConfig, SessionWindow, SettingsError, WindowTarget};
 use tempfile::TempDir;
 
 const READY: &str = ".scratch/app/issues/02-ready.md";
@@ -27,6 +27,12 @@ struct World {
     _project: TempDir,
     core: Core,
     paster: Arc<RecordingPaster>,
+}
+
+struct FoundWindow;
+
+impl SessionWindow for FoundWindow {
+    fn raise(&self, _: &WindowTarget) -> bool { true }
 }
 
 fn world() -> World {
@@ -54,8 +60,10 @@ fn world() -> World {
         clock: Arc::new(FakeClock::new()),
     })
     .unwrap();
+    core.set_session_window(Arc::new(FoundWindow));
     {
         let response = ureq::post(&core.url("/hooks/claude"))
+            .set("X-Agent-Pad-Process-Id", "4242")
             .timeout(Duration::from_secs(1))
             .send_json(json!({
                 "session_id": "claude-1",

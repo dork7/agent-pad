@@ -111,8 +111,7 @@ fn implement_posts_only_ids_after_the_focus_note_and_reports_outcomes() {
     assert!(page.contains("fetch(`${ticketsPath(sid, ticket.id)}/implement`, { method: 'POST' })"));
     assert!(page.contains("disabled: ticket.blocked"));
     assert!(page.contains("`Blocked by ${blockers}`"));
-    assert!(page.contains("The text is pasted into whichever app has focus on the computer — focus that session's terminal first."));
-    assert!(page.contains("if (!implementConfirmed)"));
+    assert!(!page.contains("Focus the session’s terminal"));
     assert!(page.contains("typeof body?.error === 'string'"));
     assert!(page.contains("toast('Sent to agent')"));
 }
