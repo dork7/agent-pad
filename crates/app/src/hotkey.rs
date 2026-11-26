@@ -3,7 +3,7 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 use serde::Serialize;
-use skills_pad_core::Core;
+use agent_pad_core::Core;
 use tauri::{AppHandle, State};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
 
@@ -75,7 +75,7 @@ impl HotkeySettings {
     }
 
     fn warn(&mut self, message: String) {
-        eprintln!("Skills Pad: {message}");
+        eprintln!("Agent Pad: {message}");
         self.warning = Some(match self.warning.take() {
             Some(previous) => format!("{previous}. {message}"),
             None => message,
@@ -198,7 +198,7 @@ mod macos {
     const EVENT_HOTKEY_EXISTS_ERR: i32 = -9878;
 
     unsafe extern "C" {
-        fn skills_pad_probe_hotkey(key: u32, modifiers: u32) -> i32;
+        fn agent_pad_probe_hotkey(key: u32, modifiers: u32) -> i32;
     }
 
     pub fn check_available(shortcut: Shortcut) -> Result<(), String> {
@@ -227,7 +227,7 @@ mod macos {
         .sum();
 
         // The desktop setup and synchronous Tauri command run on the main thread.
-        match unsafe { skills_pad_probe_hotkey(key, modifiers) } {
+        match unsafe { agent_pad_probe_hotkey(key, modifiers) } {
             0 => Ok(()),
             EVENT_HOTKEY_EXISTS_ERR => Err("This hotkey is already in use".into()),
             status => Err(format!("macOS could not check this hotkey ({status})")),

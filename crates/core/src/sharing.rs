@@ -63,7 +63,7 @@ impl Core {
             Ok(())
         });
         if let Err(error) = saved {
-            eprintln!("skills-pad: {error}");
+            eprintln!("agent-pad: {error}");
         }
     }
 
@@ -150,7 +150,7 @@ impl Running {
         let worker_stopping = stopping.clone();
         let started_at = state.clock.now();
         let thread = thread::Builder::new()
-            .name("skills-pad-sharing".into())
+            .name("agent-pad-sharing".into())
             .spawn(move || serve(&state, &server, &worker_stopping, &token, started_at))?;
         Ok(Self {
             info,

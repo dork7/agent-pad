@@ -7,8 +7,8 @@ use std::path::Path;
 use std::sync::Arc;
 
 use serde_json::{json, Value};
-use skills_pad_core::testing::{FakeClock, RecordingPaster};
-use skills_pad_core::{Core, CoreConfig, SettingsError, SharingInfo};
+use agent_pad_core::testing::{FakeClock, RecordingPaster};
+use agent_pad_core::{Core, CoreConfig, SettingsError, SharingInfo};
 use tempfile::TempDir;
 
 fn write_skill(dir: &Path, name: &str) {

@@ -6,8 +6,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use serde_json::Value;
-use skills_pad_core::testing::{FakeClock, RecordingPaster};
-use skills_pad_core::{Clock, Core, CoreConfig, Paster};
+use agent_pad_core::testing::{FakeClock, RecordingPaster};
+use agent_pad_core::{Clock, Core, CoreConfig, Paster};
 use tempfile::TempDir;
 
 fn write_skill(dir: &Path, name: &str, description: &str) {

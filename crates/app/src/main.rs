@@ -7,7 +7,7 @@ mod hotkey;
 
 use std::sync::Arc;
 
-use skills_pad_core::{Core, CoreConfig, PadWindow, SystemClock, SystemPaster};
+use agent_pad_core::{Core, CoreConfig, PadWindow, SystemClock, SystemPaster};
 use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
@@ -38,7 +38,7 @@ impl PadWindow for TauriPad {
         #[cfg(not(target_os = "macos"))]
         let hidden = pad.hide();
         if let Err(error) = hidden {
-            eprintln!("Skills Pad could not hide before pasting: {error}");
+            eprintln!("Agent Pad could not hide before pasting: {error}");
         }
         true
     }
@@ -107,11 +107,11 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     TrayIconBuilder::new()
         .icon(Image::from_bytes(icon)?)
         .icon_as_template(cfg!(target_os = "macos"))
-        .tooltip("Skills Pad")
+        .tooltip("Agent Pad")
         .menu(&menu)
         .on_menu_event(|app, event| {
             if let Err(error) = tray_menu_action(app, event.id().as_ref()) {
-                eprintln!("Skills Pad tray action failed: {error}");
+                eprintln!("Agent Pad tray action failed: {error}");
             }
         })
         .build(app)?;
@@ -129,7 +129,7 @@ fn watch_tray_accessibility(
     mut granted: bool,
 ) -> std::io::Result<()> {
     std::thread::Builder::new()
-        .name("skills-pad-accessibility".into())
+        .name("agent-pad-accessibility".into())
         .spawn(move || loop {
             std::thread::sleep(std::time::Duration::from_secs(2));
             let current = accessibility_granted();
@@ -138,7 +138,7 @@ fn watch_tray_accessibility(
             }
 
             if let Err(error) = phone.set_enabled(current) {
-                eprintln!("Skills Pad could not update the sharing menu item: {error}");
+                eprintln!("Agent Pad could not update the sharing menu item: {error}");
                 break;
             }
             granted = current;
@@ -150,7 +150,7 @@ fn watch_tray_accessibility(
                     }
                 }) {
                     eprintln!(
-                        "Skills Pad could not stop sharing after access was revoked: {error}"
+                        "Agent Pad could not stop sharing after access was revoked: {error}"
                     );
                     break;
                 }
@@ -164,7 +164,7 @@ fn main() -> tauri::Result<()> {
         .plugin(tauri_plugin_dialog::init())
         .plugin(
             tauri_plugin_autostart::Builder::new()
-                .app_name("Skills Pad")
+                .app_name("Agent Pad")
                 .build(),
         )
         .plugin(
@@ -173,7 +173,7 @@ fn main() -> tauri::Result<()> {
                     if event.state == ShortcutState::Pressed {
                         if let Some(pad) = app.get_webview_window(PAD) {
                             if let Err(error) = toggle_pad(&pad) {
-                                eprintln!("Skills Pad hotkey action failed: {error}");
+                                eprintln!("Agent Pad hotkey action failed: {error}");
                             }
                         }
                     }
@@ -206,7 +206,7 @@ fn main() -> tauri::Result<()> {
                 if window.label() == PAD {
                     api.prevent_close();
                     if let Err(error) = window.hide() {
-                        eprintln!("Skills Pad could not hide the window: {error}");
+                        eprintln!("Agent Pad could not hide the window: {error}");
                     }
                 }
             }

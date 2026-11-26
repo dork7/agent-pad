@@ -7,8 +7,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use serde_json::{json, Value};
-use skills_pad_core::testing::{FakeClock, RecordingPaster};
-use skills_pad_core::{
+use agent_pad_core::testing::{FakeClock, RecordingPaster};
+use agent_pad_core::{
     ClaudeHooksPreview, Core, CoreConfig, Session, SessionStatus, CLAUDE_HOOKS_RESTART_NOTICE,
 };
 use tempfile::TempDir;
@@ -438,10 +438,10 @@ fn the_installed_command_forwards_to_the_current_port_and_succeeds_offline() {
 fn the_stuck_threshold_is_saved_across_restarts() {
     let home = tempfile::TempDir::new().unwrap();
     let start = || {
-        skills_pad_core::Core::start(skills_pad_core::CoreConfig {
+        agent_pad_core::Core::start(agent_pad_core::CoreConfig {
             home: home.path().to_path_buf(),
-            paster: std::sync::Arc::new(skills_pad_core::testing::RecordingPaster::new()),
-            clock: std::sync::Arc::new(skills_pad_core::testing::FakeClock::new()),
+            paster: std::sync::Arc::new(agent_pad_core::testing::RecordingPaster::new()),
+            clock: std::sync::Arc::new(agent_pad_core::testing::FakeClock::new()),
         })
         .unwrap()
     };

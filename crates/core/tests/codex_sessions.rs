@@ -7,8 +7,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use serde_json::{json, Value};
-use skills_pad_core::testing::{FakeClock, RecordingPaster};
-use skills_pad_core::{Core, CoreConfig, Session, SessionStatus};
+use agent_pad_core::testing::{FakeClock, RecordingPaster};
+use agent_pad_core::{Core, CoreConfig, Session, SessionStatus};
 use tempfile::TempDir;
 
 fn start(home: &Path, clock: Arc<FakeClock>) -> Core {
@@ -164,7 +164,7 @@ fn codex_consent_rejects_stale_previews_and_restores_original_bytes() {
     assert_eq!(preview.path, path);
     assert_eq!(preview.before.as_deref(), Some(CONFIG));
     assert_eq!(fs::read_to_string(&path).unwrap(), CONFIG);
-    assert!(!skills_pad_core::settings::config_dir(home.path()).exists());
+    assert!(!agent_pad_core::settings::config_dir(home.path()).exists());
     assert!(preview.after.contains("[[hooks.Interrupt.hooks]]"));
     assert!(preview.after.contains("[[hooks.PermissionRequest.hooks]]"));
 

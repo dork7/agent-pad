@@ -9,8 +9,8 @@ use std::thread;
 use std::time::Duration;
 
 use serde_json::{json, Value};
-use skills_pad_core::testing::{FakeClock, RecordingPaster};
-use skills_pad_core::{Core, CoreConfig, PadWindow, Paster, SharingInfo};
+use agent_pad_core::testing::{FakeClock, RecordingPaster};
+use agent_pad_core::{Core, CoreConfig, PadWindow, Paster, SharingInfo};
 use tempfile::TempDir;
 
 fn write_skill(dir: &Path, name: &str) {
@@ -94,7 +94,7 @@ fn the_phone_page_and_its_data_load_from_the_scanned_url() {
     let phone = Phone::pair(&info);
 
     let page = phone.get("/").unwrap().into_string().unwrap();
-    assert!(page.contains("<title>Skills Pad</title>"));
+    assert!(page.contains("<title>Agent Pad</title>"));
     assert!(page.contains("fetch('/harnesses')") && page.contains("'/paste'"));
 
     let harnesses: Vec<Value> = phone.get("/harnesses").unwrap().into_json().unwrap();
@@ -276,6 +276,6 @@ fn pastes_keep_arrival_order() {
     assert_eq!(paster.pasted(), ["$plan ", "/tdd ", "/review ", "/tdd "]);
     assert_eq!(
         core.paste_skill("claude:missing"),
-        Err(skills_pad_core::PasteError::UnknownSkill)
+        Err(agent_pad_core::PasteError::UnknownSkill)
     );
 }

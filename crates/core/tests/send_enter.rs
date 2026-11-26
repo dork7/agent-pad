@@ -5,9 +5,9 @@ use std::path::Path;
 use std::sync::Arc;
 use std::thread;
 
-use skills_pad_core::settings::config_dir;
-use skills_pad_core::testing::{FakeClock, Recorded, RecordingPaster};
-use skills_pad_core::{Core, CoreConfig};
+use agent_pad_core::settings::config_dir;
+use agent_pad_core::testing::{FakeClock, Recorded, RecordingPaster};
+use agent_pad_core::{Core, CoreConfig};
 use tempfile::TempDir;
 
 fn write_skill(dir: &Path, name: &str) {

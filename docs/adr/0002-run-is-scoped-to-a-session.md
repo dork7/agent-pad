@@ -1,0 +1,3 @@
+# Run only targets a session's window and never falls back to the focused app
+
+Opening a session gives each skill two actions: Copy puts the invocation on the computer's clipboard, and Run raises that session's window, pastes the invocation and presses Enter. If the window can't be matched, Run does nothing and says so, instead of pasting into whatever app has focus. This gives up the original idea of pasting at the cursor of any app, because pressing Enter in an arbitrary app is unsafe and the Run button should only ever act on the agent the user chose. Copy remains the way to use a skill anywhere else. Run is also refused while the session is Blocked on a request, since Enter would answer the prompt.

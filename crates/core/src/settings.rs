@@ -1,7 +1,7 @@
 //! User settings, persisted as JSON in the OS config folder under the Core's home:
-//! `~/Library/Application Support/skills-pad/settings.json` on macOS,
-//! `~/AppData/Roaming/skills-pad/settings.json` on Windows and
-//! `~/.config/skills-pad/settings.json` elsewhere.
+//! `~/Library/Application Support/agent-pad/settings.json` on macOS,
+//! `~/AppData/Roaming/agent-pad/settings.json` on Windows and
+//! `~/.config/agent-pad/settings.json` elsewhere.
 //!
 //! Deriving the folder from `home` keeps tests (which use a temp home) isolated without extra
 //! configuration. Unknown fields are kept when saving, so other parts of the app can store
@@ -46,7 +46,7 @@ pub struct Settings {
     pub implement_templates: std::collections::BTreeMap<String, String>,
 }
 
-/// The Skills Pad config folder for `home` on this OS.
+/// The Agent Pad config folder for `home` on this OS.
 pub fn config_dir(home: &Path) -> PathBuf {
     let base = if cfg!(target_os = "macos") {
         home.join("Library/Application Support")
@@ -55,15 +55,31 @@ pub fn config_dir(home: &Path) -> PathBuf {
     } else {
         home.join(".config")
     };
-    base.join("skills-pad")
+    base.join("agent-pad")
 }
 
 pub(crate) fn settings_path(home: &Path) -> PathBuf {
     config_dir(home).join("settings.json")
 }
 
+/// The config folder used before the product was renamed from Skills Pad to Agent Pad.
+fn legacy_config_dir(home: &Path) -> PathBuf {
+    config_dir(home).with_file_name("skills-pad")
+}
+
+/// Moves a pre-rename `skills-pad` config folder to `agent-pad`, once, if the new one is absent.
+fn migrate_legacy_config(home: &Path) {
+    let (old, new) = (legacy_config_dir(home), config_dir(home));
+    if old.exists() && !new.exists() {
+        if let Err(error) = fs::rename(&old, &new) {
+            eprintln!("agent-pad: could not move the old config folder: {error}");
+        }
+    }
+}
+
 /// Loads settings, falling back to defaults when the file is missing or unreadable.
 pub fn load(home: &Path) -> Settings {
+    migrate_legacy_config(home);
     fs::read_to_string(settings_path(home))
         .ok()
         .and_then(|text| serde_json::from_str(&text).ok())

@@ -1,11 +1,11 @@
 use std::net::IpAddr;
 use std::path::PathBuf;
 
-use skills_pad_core::{
+use agent_pad_core::{
     ClaudeHooksPreview, CodexHooksPreview, ImplementError, Preset, Profile, Session, Snippet,
     Ticket, TicketSummary, CLAUDE_HOOKS_RESTART_NOTICE, CODEX_HOOKS_RESTART_NOTICE,
 };
-use skills_pad_core::{Core, Directory, Harness, Phone, PhoneError, Settings, SharingInfo, Skill};
+use agent_pad_core::{Core, Directory, Harness, Phone, PhoneError, Settings, SharingInfo, Skill};
 use tauri::{AppHandle, Manager, State};
 
 use crate::accessibility::{accessibility_granted, require_access};

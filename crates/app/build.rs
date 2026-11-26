@@ -7,7 +7,7 @@ fn main() {
         cc::Build::new()
             .file("src/macos_accessibility.c")
             .file("src/macos_hotkey.c")
-            .compile("skills_pad_macos");
+            .compile("agent_pad_macos");
     }
     tauri_build::build();
 }

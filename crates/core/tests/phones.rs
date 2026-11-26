@@ -8,8 +8,8 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use serde_json::json;
-use skills_pad_core::testing::{FakeClock, RecordingPaster};
-use skills_pad_core::{Core, CoreConfig, PhoneError, SharingInfo};
+use agent_pad_core::testing::{FakeClock, RecordingPaster};
+use agent_pad_core::{Core, CoreConfig, PhoneError, SharingInfo};
 use tempfile::TempDir;
 
 const IPHONE: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15";

@@ -5,9 +5,9 @@ use std::path::Path;
 use std::sync::Arc;
 
 use serde_json::Value;
-use skills_pad_core::harness::REGISTRY;
-use skills_pad_core::testing::{FakeClock, RecordingPaster};
-use skills_pad_core::{Core, CoreConfig};
+use agent_pad_core::harness::REGISTRY;
+use agent_pad_core::testing::{FakeClock, RecordingPaster};
+use agent_pad_core::{Core, CoreConfig};
 use tempfile::TempDir;
 
 fn write_skill(dir: &Path, name: &str) {
@@ -162,7 +162,7 @@ fn skills_are_grouped_in_registry_order() {
 #[test]
 fn verified_invocation_forms_record_their_doc_sources() {
     for h in REGISTRY {
-        if h.template != skills_pad_core::harness::DEFAULT_TEMPLATE {
+        if h.template != agent_pad_core::harness::DEFAULT_TEMPLATE {
             assert!(
                 !h.sources.is_empty(),
                 "{} has a typed form but no doc source",

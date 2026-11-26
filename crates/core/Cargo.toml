@@ -1,9 +1,9 @@
 [package]
-name = "skills-pad-core"
+name = "agent-pad-core"
 version = "0.1.0"
 edition.workspace = true
 license.workspace = true
-description = "Headless core of Skills Pad: skill discovery, the HTTP API, pasting and session status."
+description = "Headless core of Agent Pad: skill discovery, the HTTP API, pasting and session status."
 
 [dependencies]
 arboard = "3.7.0"

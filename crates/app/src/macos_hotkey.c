@@ -11,7 +11,7 @@ static bool matches(CFDictionaryRef hotkey, int key, int modifiers) {
         && key_value == key && modifier_value == modifiers;
 }
 
-OSStatus skills_pad_probe_hotkey(UInt32 key, UInt32 modifiers) {
+OSStatus agent_pad_probe_hotkey(UInt32 key, UInt32 modifiers) {
     CFArrayRef system_hotkeys = NULL;
     OSStatus status = CopySymbolicHotKeys(&system_hotkeys);
     if (status != noErr) {

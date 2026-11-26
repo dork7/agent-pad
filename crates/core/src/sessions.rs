@@ -182,7 +182,7 @@ impl Core {
             Ok(())
         });
         if let Err(error) = saved {
-            eprintln!("skills-pad: {error}");
+            eprintln!("agent-pad: {error}");
         }
     }
 

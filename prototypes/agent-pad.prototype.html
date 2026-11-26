@@ -1,20 +1,20 @@
 <!doctype html>
 <!--
   PROTOTYPE — throwaway. Not production code.
-  Question: what should Skills Pad look like on the phone and on the desktop?
+  Question: what should Agent Pad look like on the phone and on the desktop?
   Views (switch with the yellow bar, ← / →, or ?view=phone|desktop):
     phone   — the chosen variant E: skill palette + bottom agent sheet, notifications, rotate
     desktop — the Pad window: Open on phone (QR), phones with drag-and-drop View chips, profiles, agents, activity
   All state is in memory and shared between the two views (paste on the phone → shows in the Pad's activity).
   Run: open this file in a browser. To scan the QR with a real phone, serve it on the LAN:
     python3 -m http.server -d prototypes --bind 0.0.0.0 8000
-  then open http://<mac-lan-ip>:8000/skills-pad.prototype.html?view=desktop on the Mac and scan.
+  then open http://<mac-lan-ip>:8000/agent-pad.prototype.html?view=desktop on the Mac and scan.
 -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Skills Pad prototype</title>
+<title>Agent Pad prototype</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
   :root {
@@ -230,7 +230,7 @@ const SKILLS = [
   ['shared', 'pr', 'Write a pull request body.'],
 ].map(([h, name, desc, dir = null]) => ({ id: h + ':' + name, h, name, desc, dir }));
 const SESSIONS = [
-  { h: 'claude', project: 'skills-pad',  status: 'working', secs: 252,  tools: 23 },
+  { h: 'claude', project: 'agent-pad',  status: 'working', secs: 252,  tools: 23 },
   { h: 'claude', project: 'api-gateway', status: 'needs',   secs: 731,  tools: 41 },
   { h: 'claude', project: 'infra',       status: 'stuck',   secs: 562,  tools: 8 },
   { h: 'codex',  project: 'web-app',     status: 'idle',    secs: 3720, tools: 17 },
@@ -267,7 +267,7 @@ const seesHarness = (phone, h) => phone.view.some(c => c === 'h:' + h || (c.star
 const state = {
   view: 'phone', q: '', filters: new Set(), topOpen: false, dragging: false, dnd: false,
   sharing: false, token: null, port: null, net: 'en0', idleLeft: 900, profile: 'Everything',
-  log: [{ t: '09:12:04', text: 'Skills Pad started · 4 skill directories scanned' }],
+  log: [{ t: '09:12:04', text: 'Agent Pad started · 4 skill directories scanned' }],
 };
 const me = () => PHONES.find(p => p.id === 'p1'); // the phone view acts as the iPhone
 const addLog = text => { state.log.unshift({ t: now(), text }); state.log.length = Math.min(state.log.length, 30); };
@@ -331,7 +331,7 @@ function notify(i) {
   const color = { needs: 'var(--needs)', idle: 'var(--idle)', stuck: 'var(--stuck)' }[s.status];
   const n = document.getElementById('notif');
   n.innerHTML = `<span class="icon" style="background:${color}">${H(s.h).short[0]}</span>
-    <span class="txt"><span class="app"><span>Skills Pad · ${H(s.h).name}</span><span>now</span></span>
+    <span class="txt"><span class="app"><span>Agent Pad · ${H(s.h).name}</span><span>now</span></span>
     <b>${esc(s.project)} ${title}</b><small>${body} · ${state.view === 'phone' ? 'tap to open on laptop' : 'click to show'}</small></span>`;
   notifIdx = i;
   n.classList.add('show');
@@ -472,7 +472,7 @@ function renderDesk() {
   const sh = state.sharing;
   const anyOnline = PHONES.some(p => p.online);
   return `<div class="win">
-    <div class="titlebar"><span class="lights"><i></i><i></i><i></i></span>Skills Pad<span class="kbd muted">⌘⌥S to show or hide</span></div>
+    <div class="titlebar"><span class="lights"><i></i><i></i><i></i></span>Agent Pad<span class="kbd muted">⌘⌥S to show or hide</span></div>
     <div class="toolbar">
       Profile
       <select data-profile>${Object.keys(PROFILES).map(n => `<option ${n === state.profile ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>

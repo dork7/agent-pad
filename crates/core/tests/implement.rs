@@ -8,8 +8,8 @@ use std::time::Duration;
 
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use serde_json::{json, Value};
-use skills_pad_core::testing::{FakeClock, Recorded, RecordingPaster};
-use skills_pad_core::{Core, CoreConfig, SettingsError};
+use agent_pad_core::testing::{FakeClock, Recorded, RecordingPaster};
+use agent_pad_core::{Core, CoreConfig, SettingsError};
 use tempfile::TempDir;
 
 const READY: &str = ".scratch/app/issues/02-ready.md";

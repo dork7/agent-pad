@@ -5,8 +5,8 @@ use std::net::Ipv4Addr;
 use std::path::Path;
 use std::sync::Arc;
 
-use skills_pad_core::testing::{FakeClock, RecordingPaster};
-use skills_pad_core::{Core, CoreConfig, ProfileError};
+use agent_pad_core::testing::{FakeClock, RecordingPaster};
+use agent_pad_core::{Core, CoreConfig, ProfileError};
 use tempfile::TempDir;
 
 fn write_skill(dir: &Path, name: &str) {

@@ -1,8 +1,8 @@
-# Prior art and demand for Skills Pad
+# Prior art and demand for Agent Pad
 
 Checked on 2026-11-25. GitHub star counts and last-push dates come from the GitHub API (`gh api repos/<owner>/<repo>`) on that date. "Verified" means read on the primary source (official docs, the repo README, the actual issue thread). "Third-party" means only a secondary source was found.
 
-Skills Pad's three capabilities, used as columns below:
+Agent Pad's three capabilities, used as columns below:
 
 - **Pick**: browse/search installed skills across harnesses.
 - **Paste**: a phone tap inserts the invocation (`/name`, `$name`) at the cursor of the focused desktop app.
@@ -11,7 +11,7 @@ Skills Pad's three capabilities, used as columns below:
 
 ## 1. Bottom line
 
-Nothing found does all of Skills Pad's jobs together: list skills across harnesses, paste one with a phone tap, show cross-harness session status, and jump to the session's terminal. Each piece exists on its own, often done better. The closest matches are (a) **JulienCr/streamdeck-claude** and **paultyng/agentsd**, Stream Deck plugins that show live Claude Code session state on keys. A key press focuses the session's Warp tab or Ghostty window. Both need a Stream Deck and only cover Claude Code. (b) **Anthropic's Remote Control and Codex in the ChatGPT app** are official phone apps that already send "needs input" pushes and let you answer from the phone. (c) **Skills Manager (xingkongliang)** and **`npx skills`** list and sync skills across 50+ agents. Demand for the status/notification part is well documented: the Claude Code "waiting for input" hook requests have 81 and 48 thumbs-up, and the Codex "Remote Control" request has 411. Both vendors have since shipped native answers, which weakens that part of the pitch. Demand for the skill-picking part is weaker but real: people ask for fuzzy matching and complain about long `/` menus, and one closed request asked for one-tap slash-command buttons on mobile. Skills Pad's most distinct parts are paste-into-whatever-is-focused (no harness integration) and one cross-harness status view that also jumps to the right tab. If the user is happy inside the official mobile apps, the status board is largely redundant. The cross-harness, no-account, LAN-only, "phone as a skill keypad" angle has no direct competitor that I found.
+Nothing found does all of Agent Pad's jobs together: list skills across harnesses, paste one with a phone tap, show cross-harness session status, and jump to the session's terminal. Each piece exists on its own, often done better. The closest matches are (a) **JulienCr/streamdeck-claude** and **paultyng/agentsd**, Stream Deck plugins that show live Claude Code session state on keys. A key press focuses the session's Warp tab or Ghostty window. Both need a Stream Deck and only cover Claude Code. (b) **Anthropic's Remote Control and Codex in the ChatGPT app** are official phone apps that already send "needs input" pushes and let you answer from the phone. (c) **Skills Manager (xingkongliang)** and **`npx skills`** list and sync skills across 50+ agents. Demand for the status/notification part is well documented: the Claude Code "waiting for input" hook requests have 81 and 48 thumbs-up, and the Codex "Remote Control" request has 411. Both vendors have since shipped native answers, which weakens that part of the pitch. Demand for the skill-picking part is weaker but real: people ask for fuzzy matching and complain about long `/` menus, and one closed request asked for one-tap slash-command buttons on mobile. Agent Pad's most distinct parts are paste-into-whatever-is-focused (no harness integration) and one cross-harness status view that also jumps to the right tab. If the user is happy inside the official mobile apps, the status board is largely redundant. The cross-harness, no-account, LAN-only, "phone as a skill keypad" angle has no direct competitor that I found.
 
 ## 2. Comparison table
 
@@ -103,10 +103,10 @@ Legend: Y = yes, P = partial, N = no, ? = not verified.
 
 - anthropics/claude-code [#58787](https://github.com/anthropics/claude-code/issues/58787): "With many plugins/skills installed… the `/` menu becomes very long and hard to scan. Finding a built-in command means scrolling past dozens of skills." Closed as duplicate.
 - anthropics/claude-code [#24355](https://github.com/anthropics/claude-code/issues/24355), fuzzy/keyword matching for slash commands. The workaround it lists is to "memorize exact skill names." Closed as completed.
-- anthropics/claude-code [#60167](https://github.com/anthropics/claude-code/issues/60167), "[Mobile] Floating button shortcut for slash commands": "invoking a slash command requires… Type the slash command character-by-character (no autocomplete on mobile keyboard)." 0 thumbs-up, closed as not planned on 2026-06-16. This is the closest stated need to Skills Pad's picker, but it has no traction.
+- anthropics/claude-code [#60167](https://github.com/anthropics/claude-code/issues/60167), "[Mobile] Floating button shortcut for slash commands": "invoking a slash command requires… Type the slash command character-by-character (no autocomplete on mobile keyboard)." 0 thumbs-up, closed as not planned on 2026-06-16. This is the closest stated need to Agent Pad's picker, but it has no traction.
 - Supply-side signal: Skills Manager (7.8k stars) and `npx skills` (40.9k) show that managing many skills is a real pain. Neither of them invokes skills.
 
-### Counter-evidence (reasons Skills Pad may be unnecessary)
+### Counter-evidence (reasons Agent Pad may be unnecessary)
 
 - Claude Code already sends mobile pushes when actions are required, and the official app lists sessions with an online dot ([docs](https://code.claude.com/docs/en/remote-control#mobile-push-notifications)). It also has a built-in desktop notification path, OSC 7501 tab status, and agent view.
 - Codex mobile covers approvals and questions for Codex app users.
@@ -120,14 +120,14 @@ Legend: Y = yes, P = partial, N = no, ? = not verified.
 - The relevant events exist: `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PermissionRequest`, `PostToolUse`, `Notification`, `Stop`, `StopFailure`, `SubagentStart/Stop`, `SessionEnd`, and more.
 - `Notification` matches on `notification_type`, including `permission_prompt`, `idle_prompt`, `elicitation_dialog`, `agent_needs_input` and `agent_completed`. Together these cover "needs input."
 - Every event receives `session_id`, `transcript_path`, `cwd`, `permission_mode` and `hook_event_name` as JSON.
-- Hook types include `command` (stdin) and **`http`** ("sends the input as a POST request to a URL"). Skills Pad could receive events on a localhost HTTP endpoint without a shim script, as agentsd does on port 9200.
+- Hook types include `command` (stdin) and **`http`** ("sends the input as a POST request to a URL"). Agent Pad could receive events on a localhost HTTP endpoint without a shim script, as agentsd does on port 9200.
 - Skill invocation: "invoke one directly with `/skill-name`". Plugin skills are namespaced "as `/plugin-name:skill-name`". The locations are `~/.claude/skills/<name>/SKILL.md`, project `.claude/skills/`, enterprise managed dir, and `<plugin>/skills/` ([skills docs](https://code.claude.com/docs/en/skills)). This matches the spec.
 
 ### Codex hooks ([docs](https://learn.chatgpt.com/docs/hooks); developers.openai.com/codex/hooks redirects there)
 
 - Events (14): `PreToolUse`, `PermissionRequest`, `PostToolUse`, `PreCompact`, `PostCompact`, `UserPromptSubmit`, `SubagentStop`, `Stop`, `PreModelRequest`, `PostModelRequest`, `Interrupt`, `SessionStart`, `SubagentStart`, `SessionEnd`.
 - Input includes `session_id`, `transcript_path`, `cwd`, `hook_event_name` and `model`, plus `turn_id` for turn-scoped events.
-- "Hooks are enabled by default". They can be disabled with `[features] hooks = false`. Non-managed hooks "must be reviewed and trusted before they run". That first-run trust step affects Skills Pad's install flow.
+- "Hooks are enabled by default". They can be disabled with `[features] hooks = false`. Non-managed hooks "must be reviewed and trusted before they run". That first-run trust step affects Agent Pad's install flow.
 - Config: `~/.codex/hooks.json` (`%USERPROFILE%\.codex\hooks.json` on Windows), or `[hooks]` in `config.toml`. There is a `commandWindows` override.
 - **`PermissionRequest`** "runs when Codex is about to ask for approval". **No separate "needs input / question" hook is documented.** A Codex clarifying question will probably look like `Stop` (turn ended). So "needs input" vs "idle" can only be told apart for approvals.
 - `prompt`/`agent` handler types "are parsed but skipped". Only command handlers run, so an HTTP POST needs a small command shim (e.g. `curl`).
@@ -140,7 +140,7 @@ Legend: Y = yes, P = partial, N = no, ? = not verified.
 
 ### Native remote features that overlap
 
-- Claude Code: Remote Control, mobile push, agent view and OSC 7501 (see §3). Remote Control needs a claude.ai subscription and works through Anthropic's servers. It does not work with API keys or when `ANTHROPIC_BASE_URL` points to a gateway ([requirements](https://code.claude.com/docs/en/remote-control)). Skills Pad's LAN-only, account-free design is still different for those users.
+- Claude Code: Remote Control, mobile push, agent view and OSC 7501 (see §3). Remote Control needs a claude.ai subscription and works through Anthropic's servers. It does not work with API keys or when `ANTHROPIC_BASE_URL` points to a gateway ([requirements](https://code.claude.com/docs/en/remote-control)). Agent Pad's LAN-only, account-free design is still different for those users.
 - Codex: phone control through the ChatGPT app, tied to the Codex desktop app (macOS at launch).
 
 ## 6. Open questions / not verified

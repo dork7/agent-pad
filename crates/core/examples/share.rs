@@ -1,12 +1,12 @@
 //! Manual check for ticket 04: share real skills to a phone and paste for real.
 //!
-//! Run `cargo run -p skills-pad-core --example share`, scan the printed URL (or open it on the
+//! Run `cargo run -p agent-pad-core --example share`, scan the printed URL (or open it on the
 //! phone), focus a text field on the computer and tap a skill. On macOS the terminal running
 //! this needs Accessibility permission (System Settings > Privacy & Security > Accessibility).
 
 use std::sync::Arc;
 
-use skills_pad_core::{Core, CoreConfig, SystemClock, SystemPaster};
+use agent_pad_core::{Core, CoreConfig, SystemClock, SystemPaster};
 
 fn main() -> std::io::Result<()> {
     let home = std::env::var_os("HOME").expect("HOME is set").into();

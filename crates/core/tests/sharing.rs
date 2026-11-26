@@ -7,8 +7,8 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use serde_json::Value;
-use skills_pad_core::testing::{FakeClock, RecordingPaster};
-use skills_pad_core::{Core, CoreConfig, SharingInfo};
+use agent_pad_core::testing::{FakeClock, RecordingPaster};
+use agent_pad_core::{Core, CoreConfig, SharingInfo};
 use tempfile::TempDir;
 
 fn start(home: &TempDir, clock: Arc<FakeClock>) -> Core {
@@ -56,7 +56,7 @@ fn pairing_cookie(info: &SharingInfo) -> String {
     assert!(response
         .into_string()
         .unwrap()
-        .contains("<h1>Skills Pad</h1>"));
+        .contains("<h1>Agent Pad</h1>"));
     set_cookie.split(';').next().unwrap().to_string()
 }
 

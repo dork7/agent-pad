@@ -1,4 +1,4 @@
-//! A safe demo of the phone page with sample data: `cargo run -p skills-pad-core --example demo_phone`.
+//! A safe demo of the phone page with sample data: `cargo run -p agent-pad-core --example demo_phone`.
 //!
 //! Uses a temporary home with a few skills, a preset, snippets, a project with tickets and a fake
 //! Claude Code session. Taps are recorded and printed, never pasted, so it is safe for
@@ -9,8 +9,8 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
-use skills_pad_core::testing::RecordingPaster;
-use skills_pad_core::{Core, CoreConfig, SystemClock};
+use agent_pad_core::testing::RecordingPaster;
+use agent_pad_core::{Core, CoreConfig, SystemClock};
 
 fn skill(dir: &Path, name: &str, description: &str) {
     let dir = dir.join(name);

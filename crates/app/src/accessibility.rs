@@ -3,7 +3,7 @@ pub fn accessibility_granted() -> bool {
     #[cfg(target_os = "macos")]
     {
         // The C wrapper calls AXIsProcessTrusted without prompting.
-        unsafe { skills_pad_accessibility_granted() }
+        unsafe { agent_pad_accessibility_granted() }
     }
     #[cfg(not(target_os = "macos"))]
     {
@@ -25,7 +25,7 @@ pub fn open_accessibility_settings() -> Result<(), String> {
     {
         if !accessibility_granted() {
             // Prompt only on request so macOS adds the app to the Accessibility list.
-            unsafe { skills_pad_prompt_for_accessibility() };
+            unsafe { agent_pad_prompt_for_accessibility() };
         }
 
         let status = std::process::Command::new("/usr/bin/open")
@@ -41,8 +41,8 @@ pub fn open_accessibility_settings() -> Result<(), String> {
 
 #[cfg(target_os = "macos")]
 unsafe extern "C" {
-    fn skills_pad_accessibility_granted() -> bool;
-    fn skills_pad_prompt_for_accessibility();
+    fn agent_pad_accessibility_granted() -> bool;
+    fn agent_pad_prompt_for_accessibility();
 }
 
 #[cfg(test)]

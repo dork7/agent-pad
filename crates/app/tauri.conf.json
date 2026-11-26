@@ -1,6 +1,6 @@
 {
-  "productName": "Skills Pad",
-  "identifier": "com.skillspad.app",
+  "productName": "Agent Pad",
+  "identifier": "com.agentpad.app",
   "build": {
     "frontendDist": "ui"
   },
@@ -9,7 +9,7 @@
     "windows": [
       {
         "label": "pad",
-        "title": "Skills Pad",
+        "title": "Agent Pad",
         "width": 560,
         "height": 620,
         "minWidth": 380,

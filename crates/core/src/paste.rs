@@ -52,7 +52,7 @@ impl PasteQueue {
     pub fn start(paster: Arc<dyn Paster>, pad: Arc<RwLock<Arc<dyn PadWindow>>>) -> Self {
         let (jobs, rx): (Sender<Job>, Receiver<Job>) = mpsc::channel();
         thread::Builder::new()
-            .name("skills-pad-paste".into())
+            .name("agent-pad-paste".into())
             .spawn(move || {
                 // Ends when the queue (and so the last sender) is dropped.
                 for job in rx {
@@ -96,7 +96,7 @@ const CLIPBOARD_SETTLE: Duration = Duration::from_millis(120);
 impl Paster for SystemPaster {
     fn paste(&self, text: &str) {
         if let Err(err) = system_paste(text) {
-            eprintln!("skills-pad: paste failed: {err}");
+            eprintln!("agent-pad: paste failed: {err}");
         }
     }
 
@@ -109,7 +109,7 @@ impl Paster for SystemPaster {
                     .map_err(|e| e.to_string())
             });
         if let Err(err) = pressed {
-            eprintln!("skills-pad: Enter failed: {err}");
+            eprintln!("agent-pad: Enter failed: {err}");
         }
     }
 }

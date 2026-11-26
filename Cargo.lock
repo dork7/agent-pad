@@ -3535,14 +3535,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "33f4fe9184a62d842c9ef383018f3306d8ba224fd9d836f56d7288308847c256"
 
 [[package]]
-name = "skills-pad-app"
+name = "agent-pad-app"
 version = "0.1.0"
 dependencies = [
  "cc",
  "keycode",
  "serde",
  "serde_json",
- "skills-pad-core",
+ "agent-pad-core",
  "tauri",
  "tauri-build",
  "tauri-plugin-autostart",
@@ -3552,7 +3552,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "skills-pad-core"
+name = "agent-pad-core"
 version = "0.1.0"
 dependencies = [
  "arboard",

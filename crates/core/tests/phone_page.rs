@@ -4,8 +4,8 @@
 use std::net::{Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 
-use skills_pad_core::testing::{FakeClock, RecordingPaster};
-use skills_pad_core::{Core, CoreConfig};
+use agent_pad_core::testing::{FakeClock, RecordingPaster};
+use agent_pad_core::{Core, CoreConfig};
 use tempfile::TempDir;
 
 fn phone_page() -> String {

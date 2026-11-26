@@ -1,4 +1,4 @@
-//! Headless core of Skills Pad.
+//! Headless core of Agent Pad.
 //!
 //! The Core owns all behavior. The desktop shell (Tauri) and the phone page only call into it:
 //! the shell through [`Core`] methods, the phone and hook senders over HTTP.

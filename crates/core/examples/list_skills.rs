@@ -3,8 +3,8 @@
 fn main() {
     let home = std::env::var_os("HOME").expect("HOME is set");
     let home = std::path::Path::new(&home);
-    let settings = skills_pad_core::settings::load(home);
-    for skill in skills_pad_core::skills::scan(home, &settings) {
+    let settings = agent_pad_core::settings::load(home);
+    for skill in agent_pad_core::skills::scan(home, &settings) {
         println!(
             "{:<40} {}",
             skill.id,

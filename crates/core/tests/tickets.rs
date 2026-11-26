@@ -8,8 +8,8 @@ use std::time::Duration;
 
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use serde_json::json;
-use skills_pad_core::testing::{FakeClock, RecordingPaster};
-use skills_pad_core::{Core, CoreConfig, SettingsError, Ticket, TicketSummary};
+use agent_pad_core::testing::{FakeClock, RecordingPaster};
+use agent_pad_core::{Core, CoreConfig, SettingsError, Ticket, TicketSummary};
 use tempfile::TempDir;
 
 const LIST: &str = "/sessions/work/tickets";
