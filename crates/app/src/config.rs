@@ -24,6 +24,8 @@ pub fn parse_hotkey(input: &str) -> Result<Shortcut, String> {
 #[serde(default)]
 pub struct Config {
     pub hotkey: String,
+    pub hud_visible: bool,
+    pub hud_position: Option<(i32, i32)>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stuck_threshold_seconds: Option<u32>,
     #[serde(flatten)]
@@ -34,6 +36,8 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             hotkey: default_hotkey(std::env::consts::OS).into(),
+            hud_visible: true,
+            hud_position: None,
             stuck_threshold_seconds: None,
             extra: Map::new(),
         }
@@ -107,6 +111,15 @@ mod tests {
         let loaded = load_config(&path).unwrap();
         assert_eq!(loaded.hotkey, "Alt+Shift+K");
         assert_eq!(loaded.stuck_threshold_seconds, Some(90));
+        assert!(loaded.hud_visible);
+        assert_eq!(loaded.hud_position, None);
+
+        config.hud_visible = false;
+        config.hud_position = Some((-60, 400));
+        save_config(&path, &config).unwrap();
+        let loaded = load_config(&path).unwrap();
+        assert!(!loaded.hud_visible);
+        assert_eq!(loaded.hud_position, Some((-60, 400)));
 
         fs::write(&path, r#"{"future_setting":{"enabled":true}}"#).unwrap();
         config = load_config(&path).unwrap();
@@ -117,7 +130,7 @@ mod tests {
         let saved: Value = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
         assert_eq!(
             saved,
-            json!({"hotkey":"Ctrl+Shift+K","future_setting":{"enabled":true}})
+            json!({"hotkey":"Ctrl+Shift+K","hud_visible":true,"hud_position":null,"future_setting":{"enabled":true}})
         );
     }
 

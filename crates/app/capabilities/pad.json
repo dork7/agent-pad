@@ -1,11 +1,13 @@
 {
   "identifier": "pad",
   "description": "Receive tray updates, manage start at login, and choose skill folders in the Pad window",
-  "windows": ["pad"],
+  "windows": ["pad", "hud"],
   "permissions": [
     "core:event:allow-listen",
     "core:event:allow-unlisten",
     "autostart:default",
-    "dialog:allow-open"
+    "dialog:allow-open",
+    "core:window:allow-start-dragging",
+    "core:window:allow-set-size"
   ]
 }

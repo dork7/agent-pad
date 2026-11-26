@@ -4,6 +4,7 @@ mod accessibility;
 mod commands;
 mod config;
 mod hotkey;
+mod hud;
 
 use std::sync::Arc;
 
@@ -198,10 +199,15 @@ fn main() -> tauri::Result<()> {
                 &core,
             ));
             app.manage(core);
+            app.manage(hud::HudState::new(app.path().app_config_dir()?.join("config.json")));
+            hud::start(app.handle())?;
             build_tray(app.handle())?;
             Ok(())
         })
         .on_window_event(|window, event| {
+            if window.label() == hud::HUD && matches!(event, WindowEvent::Moved(_) | WindowEvent::Resized(_)) {
+                hud::moved(window.app_handle());
+            }
             if let WindowEvent::CloseRequested { api, .. } = event {
                 if window.label() == PAD {
                     api.prevent_close();
@@ -247,6 +253,9 @@ fn main() -> tauri::Result<()> {
             commands::apply_codex_hooks,
             commands::remove_codex_hooks,
             commands::list_sessions,
+            hud::hud_summaries_command,
+            hud::hud_visible,
+            hud::set_hud_visible,
             commands::pending_tickets,
             commands::ticket,
             commands::ticket_pattern,
