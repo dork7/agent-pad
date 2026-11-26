@@ -16,6 +16,8 @@ use crate::{server, Core, PasteError, State};
 
 const IDLE_TIMEOUT: Duration = Duration::from_secs(15 * 60);
 const IDLE_POLL_INTERVAL: Duration = Duration::from_secs(1);
+// Cookie names keep their pre-rename "skills_pad" spelling on purpose, so phones paired
+// before the rename to Agent Pad stay paired.
 const TOKEN_COOKIE: &str = "skills_pad_token";
 const DEVICE_COOKIE: &str = "skills_pad_device";
 /// The device ID cookie lasts a year so a Phone keeps its name and View.

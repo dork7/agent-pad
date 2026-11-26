@@ -9,6 +9,41 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
 
 [[package]]
+name = "agent-pad-app"
+version = "0.1.0"
+dependencies = [
+ "agent-pad-core",
+ "cc",
+ "keycode",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-autostart",
+ "tauri-plugin-dialog",
+ "tauri-plugin-global-shortcut",
+ "tempfile",
+]
+
+[[package]]
+name = "agent-pad-core"
+version = "0.1.0"
+dependencies = [
+ "arboard",
+ "cap-std",
+ "enigo",
+ "getrandom 0.4.3",
+ "percent-encoding",
+ "qrcode",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tiny_http",
+ "toml_edit 0.25.21+spec-1.1.0",
+ "ureq",
+]
+
+[[package]]
 name = "aho-corasick"
 version = "1.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3533,41 +3568,6 @@ name = "siphasher"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "33f4fe9184a62d842c9ef383018f3306d8ba224fd9d836f56d7288308847c256"
-
-[[package]]
-name = "agent-pad-app"
-version = "0.1.0"
-dependencies = [
- "cc",
- "keycode",
- "serde",
- "serde_json",
- "agent-pad-core",
- "tauri",
- "tauri-build",
- "tauri-plugin-autostart",
- "tauri-plugin-dialog",
- "tauri-plugin-global-shortcut",
- "tempfile",
-]
-
-[[package]]
-name = "agent-pad-core"
-version = "0.1.0"
-dependencies = [
- "arboard",
- "cap-std",
- "enigo",
- "getrandom 0.4.3",
- "percent-encoding",
- "qrcode",
- "serde",
- "serde_json",
- "tempfile",
- "tiny_http",
- "toml_edit 0.25.21+spec-1.1.0",
- "ureq",
-]
 
 [[package]]
 name = "slab"

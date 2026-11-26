@@ -183,3 +183,35 @@ pub(crate) fn unique_id(base: &str, taken: impl Fn(&str) -> bool) -> String {
         .find(|id| !taken(id))
         .expect("some id is free")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_pre_rename_config_folder_is_moved_to_the_new_name_on_first_load() {
+        let home = tempfile::tempdir().unwrap();
+        let old = legacy_config_dir(home.path());
+        fs::create_dir_all(&old).unwrap();
+        fs::write(old.join("settings.json"), r#"{"stuck_threshold_seconds": 42}"#).unwrap();
+
+        let loaded = load(home.path());
+
+        assert_eq!(loaded.stuck_threshold_seconds, Some(42));
+        assert!(!old.exists());
+        assert!(settings_path(home.path()).exists());
+    }
+
+    #[test]
+    fn an_existing_new_config_folder_is_never_overwritten_by_the_old_one() {
+        let home = tempfile::tempdir().unwrap();
+        let old = legacy_config_dir(home.path());
+        fs::create_dir_all(&old).unwrap();
+        fs::write(old.join("settings.json"), r#"{"stuck_threshold_seconds": 1}"#).unwrap();
+        fs::create_dir_all(config_dir(home.path())).unwrap();
+        fs::write(settings_path(home.path()), r#"{"stuck_threshold_seconds": 2}"#).unwrap();
+
+        assert_eq!(load(home.path()).stuck_threshold_seconds, Some(2));
+        assert!(old.exists());
+    }
+}

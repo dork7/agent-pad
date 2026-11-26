@@ -231,6 +231,8 @@ impl Listener {
         })?;
         let path = shell_quote(path);
         let harness = self.harness.id();
+        // The trailing "skills-pad-<id>" marker keeps its pre-rename spelling on purpose: removal
+        // finds hooks by it, including ones installed before the rename to Agent Pad.
         Ok(format!(
             "if [ -f {path} ] && IFS=' ' read -r pid port < {path}; then \
              case \"$pid:$port\" in *[!0-9:]*|:*|*:) exit 0;; esac; \
