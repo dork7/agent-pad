@@ -8,6 +8,9 @@ const grantButton = byId("grant-access");
 const pairing = byId("pairing");
 const qr = byId("qr");
 const sharingUrl = byId("sharing-url");
+const firewallCard = byId("windows-firewall");
+const isWindows = navigator.userAgentData?.platform === "Windows" || /Windows/i.test(navigator.userAgent);
+const sharedOnceKey = "agent-pad-windows-shared-once";
 const hotkeyInput = byId("hotkey");
 const saveHotkey = byId("save-hotkey");
 
@@ -57,6 +60,8 @@ grantButton.addEventListener("click", async () => {
 
 function renderSharing(info) {
   const active = Boolean(info);
+  if (isWindows && active) localStorage.setItem(sharedOnceKey, "1");
+  firewallCard.hidden = !isWindows || active || localStorage.getItem(sharedOnceKey) === "1";
   const status = byId("sharing-status");
   const label = active ? "Sharing" : "Sharing off";
   if (status.textContent !== label) status.textContent = label;
