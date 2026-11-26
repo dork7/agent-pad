@@ -11,6 +11,7 @@ pub mod phones;
 pub mod profiles;
 pub mod saved_text;
 mod server;
+mod session_window;
 mod sessions;
 pub mod settings;
 mod sharing;
@@ -27,7 +28,7 @@ use std::sync::{Arc, Mutex, RwLock};
 pub use clock::{Clock, SystemClock};
 pub use harness::{CustomHarness, Harness};
 pub use hooks::{ClaudeHooksPreview, CodexHooksPreview, CODEX_HOOKS_RESTART_NOTICE};
-pub use paste::{PadWindow, Paster, SystemPaster};
+pub use paste::{PadWindow, Paster, SessionWindow, SystemPaster, SystemSessionWindow, WindowTarget};
 pub use phones::{Phone, PhoneError};
 pub use profiles::{Profile, ProfileError};
 pub use saved_text::{Preset, PresetRef, Snippet, SNIPPETS_CHIP};
@@ -63,6 +64,7 @@ pub(crate) struct State {
     pub home: PathBuf,
     pub clock: Arc<dyn Clock>,
     pub pad: Arc<RwLock<Arc<dyn PadWindow>>>,
+    pub window: Arc<RwLock<Arc<dyn SessionWindow>>>,
     pub pastes: paste::PasteQueue,
     pub settings: Mutex<Settings>,
     pub phones: Mutex<phones::Runtime>,
@@ -82,7 +84,43 @@ pub enum PasteError {
     UnknownSnippet,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RunError {
+    UnknownSession,
+    UnknownSkill,
+    WrongHarness,
+    Blocked,
+    WindowNotFound,
+}
+
+impl std::fmt::Display for RunError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::UnknownSession => "unknown session",
+            Self::UnknownSkill => "unknown skill",
+            Self::WrongHarness => "skill does not belong to this session's harness",
+            Self::Blocked => "answer the session request first",
+            Self::WindowNotFound => "session window was not found",
+        })
+    }
+}
+
 impl State {
+    pub(crate) fn run_skill_in_session(&self, session_id: &str, skill_id: &str) -> Result<Skill, RunError> {
+        let session = self.list_sessions().into_iter().find(|s| s.session_id == session_id)
+            .ok_or(RunError::UnknownSession)?;
+        if session.status == SessionStatus::Blocked { return Err(RunError::Blocked); }
+        let skill = self.scan().into_iter().find(|s| s.id == skill_id)
+            .ok_or(RunError::UnknownSkill)?;
+        if skill.harness != session.harness { return Err(RunError::WrongHarness); }
+        let target = self.sessions.lock().unwrap().target(session_id)
+            .ok_or(RunError::WindowNotFound)?;
+        if !self.pastes.paste_in_window(skill.invocation.clone(), true, target) {
+            return Err(RunError::WindowNotFound);
+        }
+        Ok(skill)
+    }
+
     /// Scans for skills now with the current settings. Skills are never cached.
     pub fn scan(&self) -> Vec<Skill> {
         let settings = self.settings.lock().unwrap().clone();
@@ -127,9 +165,15 @@ impl State {
 }
 
 impl Core {
+    pub fn run_skill_in_session(&self, session_id: &str, skill_id: &str) -> Result<Skill, RunError> {
+        self.state.run_skill_in_session(session_id, skill_id)
+    }
+
     pub fn start(config: CoreConfig) -> io::Result<Core> {
         let pad: Arc<RwLock<Arc<dyn PadWindow>>> =
             Arc::new(RwLock::new(Arc::new(paste::NoPadWindow)));
+        let window: Arc<RwLock<Arc<dyn SessionWindow>>> =
+            Arc::new(RwLock::new(Arc::new(SystemSessionWindow)));
         let loaded = settings::load(&config.home);
         let stuck_threshold = loaded.stuck_threshold_seconds;
         let settings = Mutex::new(loaded);
@@ -138,8 +182,9 @@ impl Core {
             phones: Default::default(),
             home: config.home,
             clock: config.clock,
-            pastes: paste::PasteQueue::start(config.paster, pad.clone()),
+            pastes: paste::PasteQueue::start(config.paster, pad.clone(), window.clone()),
             pad,
+            window,
             sessions: Mutex::new(sessions::Sessions::with_threshold(stuck_threshold)),
         });
         let server = server::start(state.clone())?;
@@ -178,6 +223,11 @@ impl Core {
     /// Registers the Pad window so the paste flow can hide it before pasting.
     pub fn set_pad_window(&self, pad: Arc<dyn PadWindow>) {
         *self.state.pad.write().unwrap() = pad;
+    }
+
+    /// Replace window raising, for example with a recording fake in tests.
+    pub fn set_session_window(&self, window: Arc<dyn SessionWindow>) {
+        *self.state.window.write().unwrap() = window;
     }
 
     /// Pastes the Invocation of `skill_id` at the cursor of the focused app, as a phone tap

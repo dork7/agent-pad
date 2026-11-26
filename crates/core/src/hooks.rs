@@ -112,10 +112,15 @@ pub(crate) fn receive(
         Harness::Codex => codex::event(&payload),
     };
     if let Some(event) = event {
+        let process_id = request.headers().iter()
+            .find(|header| header.field.equiv("X-Agent-Pad-Process-Id"))
+            .and_then(|header| header.value.as_str().parse::<u32>().ok())
+            .filter(|id| *id > 0);
         state.sessions.lock().unwrap().record(
             harness.id(),
             payload.session_id,
             payload.cwd,
+            process_id,
             event,
             state.clock.now(),
         );
@@ -160,6 +165,8 @@ fn windows_hook_script(path: &str, harness: &str) -> String {
          $client.Timeout = [TimeSpan]::FromMilliseconds(500); \
          $body = [Net.Http.ByteArrayContent]::new($inputBytes.ToArray()); \
          $body.Headers.ContentType = [Net.Http.Headers.MediaTypeHeaderValue]::Parse('application/json'); \
+         $parentPid = (Get-CimInstance Win32_Process -Filter ('ProcessId=' + $PID)).ParentProcessId; \
+         if ($parentPid -gt 0) {{ $body.Headers.Add('X-Agent-Pad-Process-Id', [string]$parentPid) }}; \
          $response = $client.PostAsync('http://127.0.0.1:' + $port + '/hooks/{harness}', $body).GetAwaiter().GetResult(); \
          $response.Dispose(); $body.Dispose(); $client.Dispose(); $handler.Dispose(); \
          }} catch {{ }}"
@@ -289,7 +296,7 @@ impl Listener {
              case \"$pid:$port\" in *[!0-9:]*|:*|*:) exit 0;; esac; \
              if kill -0 \"$pid\"; then \
              curl -q --silent --noproxy '*' --max-time 0.5 \
-             -H 'Content-Type: application/json' --data-binary @- \
+             -H 'Content-Type: application/json' -H \"X-Agent-Pad-Process-Id: $PPID\" --data-binary @- \
              \"http://127.0.0.1:$port/hooks/{harness}\"; fi; fi >/dev/null 2>&1; \
              exit 0 # skills-pad-{install_id}"
         ))

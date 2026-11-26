@@ -183,16 +183,6 @@
     </nav>
   </div>
 </div>
-<dialog id="implement-note" class="notice" aria-labelledby="implement-title" aria-describedby="implement-description">
-  <form method="dialog">
-    <h2 id="implement-title">Focus the session’s terminal</h2>
-    <p id="implement-description">The text is pasted into whichever app has focus on the computer — focus that session's terminal first.</p>
-    <div class="detail-actions">
-      <button class="action" value="cancel" autofocus>Cancel</button>
-      <button class="action primary" value="implement">Implement</button>
-    </div>
-  </form>
-</dialog>
 <div id="toast" role="status" aria-live="polite"></div>
 <script>
 (() => {
@@ -236,6 +226,7 @@
     const tabIds = tabs().map(t => t.id);
     if (!tabIds.includes(active)) active = tabIds[0] || null;
     render();
+    if (route.page === 'session') renderSession(route.sid);
   }
 
   const SNIPPETS_TAB = '__snippets';
@@ -323,6 +314,7 @@
   }
 
   async function paste(skill, preset) {
+    if (route.page === 'session') return runSkill(route.sid, skill);
     buzz(12);
     try {
       const r = await fetch('/paste', {
@@ -476,6 +468,22 @@
     }
   }
 
+  async function runSkill(sid, skill) {
+    buzz(12);
+    try {
+      const response = await fetch(`/sessions/${encodeURIComponent(sid)}/run`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: skill.id }),
+      });
+      if (!response.ok) throw new Error(await responseError(response, 'Could not run the skill.'));
+      const session = sessions?.find(item => item.session_id === sid);
+      toast(`Running ${skill.invocation.trim()}${session ? ' in ' + projectName(session.project_folder) : ''}`);
+    } catch (error) {
+      buzz([30, 40, 30]);
+      toast(error.message, true);
+    }
+  }
+
   function ticketsPath(sid, tid) {
     const list = `/sessions/${encodeURIComponent(sid)}/tickets`;
     return tid === undefined ? list : `${list}/${encodeURIComponent(tid)}`;
@@ -573,14 +581,6 @@
     if (ticket.blocked || sendingTicket) return;
     setImplementBusy(true);
     try {
-      if (!implementConfirmed) {
-        const note = $('implement-note');
-        note.returnValue = '';
-        note.showModal();
-        await new Promise(resolve => note.addEventListener('close', resolve, { once: true }));
-        if (note.returnValue !== 'implement') return;
-        implementConfirmed = true;
-      }
       buzz(12);
       const response = await fetch(`${ticketsPath(sid, ticket.id)}/implement`, { method: 'POST' });
       if (!response.ok) throw new Error(await responseError(response, 'Could not send the ticket.'));

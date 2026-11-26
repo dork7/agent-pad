@@ -373,6 +373,7 @@ pub enum ImplementError {
     NotPending,
     /// A Ticket it is blocked by is still pending.
     Blocked,
+    WindowNotFound,
 }
 
 impl From<TicketError> for ImplementError {
@@ -418,7 +419,11 @@ impl State {
             .replace(TICKET_PATH, ticket_id)
             .trim_end()
             .to_string();
-        self.pastes.paste(text.clone(), true);
+        let target = self.sessions.lock().unwrap().target(session_id)
+            .ok_or(ImplementError::WindowNotFound)?;
+        if !self.pastes.paste_in_window(text.clone(), true, target) {
+            return Err(ImplementError::WindowNotFound);
+        }
         Ok(text)
     }
 }

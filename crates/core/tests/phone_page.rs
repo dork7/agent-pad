@@ -52,7 +52,7 @@ fn the_page_follows_the_phone_theme_and_puts_controls_in_thumb_reach() {
     assert!(page.contains("navigator.vibrate"));
     // Tabs and search live in the bottom dock, after the list.
     let list = page.find("<div id=\"list\"").unwrap();
-    let dock = page.find("<div class=\"dock\">").unwrap();
+    let dock = page.find("<div class=\"dock\"").unwrap();
     let search = page.find("<input id=\"q\"").unwrap();
     assert!(list < dock && dock < search);
     assert!(page.contains("width=device-width"));
@@ -116,8 +116,7 @@ fn implement_posts_only_ids_after_the_focus_note_and_reports_outcomes() {
     assert!(page.contains("fetch(`${ticketsPath(sid, ticket.id)}/implement`, { method: 'POST' })"));
     assert!(page.contains("disabled: ticket.blocked"));
     assert!(page.contains("`Blocked by ${blockers}`"));
-    assert!(page.contains("The text is pasted into whichever app has focus on the computer — focus that session's terminal first."));
-    assert!(page.contains("if (!implementConfirmed)"));
+    assert!(!page.contains("Focus the session’s terminal"));
     assert!(page.contains("typeof body?.error === 'string'"));
     assert!(page.contains("toast('Sent to agent')"));
 }

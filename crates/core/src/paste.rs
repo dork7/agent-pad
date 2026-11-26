@@ -7,6 +7,7 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
 use std::time::Duration;
+use std::path::PathBuf;
 
 /// Inserts text at the cursor of the focused app on the computer.
 ///
@@ -25,6 +26,26 @@ pub trait PadWindow: Send + Sync {
     fn hide_if_visible(&self) -> bool;
 }
 
+/// Hook-derived context for the window that owns a session. The phone supplies neither field.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WindowTarget {
+    pub process_id: u32,
+    pub project_folder: PathBuf,
+}
+
+/// Raises one unambiguous window belonging to the hook process or its host.
+pub trait SessionWindow: Send + Sync {
+    fn raise(&self, target: &WindowTarget) -> bool;
+}
+
+pub struct SystemSessionWindow;
+
+impl SessionWindow for SystemSessionWindow {
+    fn raise(&self, target: &WindowTarget) -> bool {
+        crate::session_window::raise(target)
+    }
+}
+
 /// Used until the shell registers its window, and in tests.
 pub(crate) struct NoPadWindow;
 
@@ -40,7 +61,8 @@ const FOCUS_RETURN_DELAY: Duration = Duration::from_millis(150);
 struct Job {
     text: String,
     enter: bool,
-    done: Sender<()>,
+    target: Option<WindowTarget>,
+    done: Sender<bool>,
 }
 
 /// One worker thread that performs pastes in arrival order.
@@ -49,7 +71,7 @@ pub(crate) struct PasteQueue {
 }
 
 impl PasteQueue {
-    pub fn start(paster: Arc<dyn Paster>, pad: Arc<RwLock<Arc<dyn PadWindow>>>) -> Self {
+    pub fn start(paster: Arc<dyn Paster>, pad: Arc<RwLock<Arc<dyn PadWindow>>>, window: Arc<RwLock<Arc<dyn SessionWindow>>>) -> Self {
         let (jobs, rx): (Sender<Job>, Receiver<Job>) = mpsc::channel();
         thread::Builder::new()
             .name("agent-pad-paste".into())
@@ -60,11 +82,18 @@ impl PasteQueue {
                     if pad.hide_if_visible() {
                         thread::sleep(FOCUS_RETURN_DELAY);
                     }
+                    if let Some(target) = &job.target {
+                        if !window.read().unwrap().raise(target) {
+                            let _ = job.done.send(false);
+                            continue;
+                        }
+                        thread::sleep(FOCUS_RETURN_DELAY);
+                    }
                     paster.paste(&job.text);
                     if job.enter {
                         paster.press_enter();
                     }
-                    let _ = job.done.send(());
+                    let _ = job.done.send(true);
                 }
             })
             .expect("spawn paste thread");
@@ -75,11 +104,20 @@ impl PasteQueue {
 
     /// Queues `text` (followed by Enter if `enter`) and blocks until it has been pasted.
     pub fn paste(&self, text: String, enter: bool) {
+        let _ = self.send(text, enter, None);
+    }
+
+    pub fn paste_in_window(&self, text: String, enter: bool, target: WindowTarget) -> bool {
+        self.send(text, enter, Some(target))
+    }
+
+    fn send(&self, text: String, enter: bool, target: Option<WindowTarget>) -> bool {
         let (done, wait) = mpsc::channel();
-        let sent = self.jobs.lock().unwrap().send(Job { text, enter, done });
+        let sent = self.jobs.lock().unwrap().send(Job { text, enter, target, done });
         if sent.is_ok() {
-            let _ = wait.recv();
+            return wait.recv().unwrap_or(false);
         }
+        false
     }
 }
 

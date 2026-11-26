@@ -8,6 +8,7 @@ use std::time::{Duration, Instant};
 use serde::{Deserialize, Serialize};
 
 use crate::{Core, State};
+use crate::WindowTarget;
 
 const ENDED_RETENTION: Duration = Duration::from_secs(10 * 60);
 
@@ -52,6 +53,7 @@ pub(crate) enum Event {
 
 struct TrackedSession {
     project_folder: PathBuf,
+    process_id: Option<u32>,
     status: SessionStatus,
     started: Instant,
     last_event: Instant,
@@ -87,6 +89,7 @@ impl Sessions {
         harness: &'static str,
         id: String,
         cwd: PathBuf,
+        process_id: Option<u32>,
         event: Event,
         now: Instant,
     ) {
@@ -97,6 +100,7 @@ impl Sessions {
                 key,
                 TrackedSession {
                     project_folder: cwd,
+                    process_id,
                     status: SessionStatus::Done,
                     started: now,
                     last_event: now,
@@ -113,6 +117,7 @@ impl Sessions {
             return;
         }
         session.project_folder = cwd;
+        if process_id.is_some() { session.process_id = process_id; }
         session.last_event = now;
         session.status = match event {
             Event::Start => unreachable!("start handled above"),
@@ -172,6 +177,17 @@ impl Sessions {
             SessionStatus::Ended => 4,
         });
         listed
+    }
+
+    pub(crate) fn target(&self, session_id: &str) -> Option<WindowTarget> {
+        let mut matches = self.by_id.iter().filter(|((_, id), session)|
+            id == session_id && session.status != SessionStatus::Ended);
+        let (_, session) = matches.next()?;
+        if matches.next().is_some() { return None; }
+        Some(WindowTarget {
+            process_id: session.process_id?,
+            project_folder: session.project_folder.clone(),
+        })
     }
 }
 

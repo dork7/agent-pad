@@ -318,6 +318,7 @@ pub async fn implement_ticket(
                 ImplementError::Ticket(error) => error.to_string(),
                 ImplementError::Blocked => "A pending ticket blocks this ticket.".into(),
                 ImplementError::NotPending => "This ticket is no longer pending.".into(),
+                ImplementError::WindowNotFound => "The session window was not found.".into(),
             })
     })
     .await
