@@ -45,8 +45,16 @@ One running conversation of an agent in a harness, in a project folder, as repor
 _Avoid_: Agent, process, run
 
 **Status**:
-A session's current state: working, needs input, idle, stuck, or ended. Stuck means working with no events for a set time.
-_Avoid_: Progress, health
+A session's current state, shown on the phone: Running, Blocked (waiting for the user), Done (turn finished, idle), or Stalled (running with no events for a set time). Ended sessions leave the list after a short while.
+_Avoid_: Progress, health, state
+
+**Home**:
+The phone's main screen: the list of running sessions with their status, most urgent first, plus an entry to all skills.
+_Avoid_: Dashboard, main view
+
+**Session screen**:
+What opens when a session is tapped on Home: the session's header and the skill pad for that session's harness.
+_Avoid_: Detail page
 
 **Ticket**:
 A Markdown file in a project's ticket folder that describes one piece of work, with a status and a checklist. Pending unless its status is done, closed or wontfix.
