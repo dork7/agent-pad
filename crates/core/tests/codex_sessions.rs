@@ -77,16 +77,16 @@ fn codex_hooks_track_permission_requests_interrupts_and_session_end() {
         assert_eq!(listed[0].tool_count, tool_count);
     };
     hook(&core, "codex", "SessionStart", json!({"source": "resume"}));
-    status(Idle, 0);
+    status(Done, 0);
     hook(
         &core,
         "codex",
         "UserPromptSubmit",
         json!({"turn_id": "one", "prompt": "Hello"}),
     );
-    status(Working, 0);
+    status(Running, 0);
     clock.advance(Duration::from_secs(300));
-    status(Stuck, 0);
+    status(Stalled, 0);
 
     let tool = json!({
         "turn_id": "one",
@@ -94,23 +94,23 @@ fn codex_hooks_track_permission_requests_interrupts_and_session_end() {
         "tool_input": {"command": "pwd"}
     });
     hook(&core, "codex", "PreToolUse", tool.clone());
-    status(Working, 1);
+    status(Running, 1);
     hook(&core, "codex", "PermissionRequest", tool.clone());
-    status(NeedsInput, 1);
+    status(Blocked, 1);
     hook(&core, "codex", "Interrupt", json!({"turn_id": "one"}));
-    status(Idle, 1);
+    status(Done, 1);
     hook(&core, "codex", "PreToolUse", tool.clone());
     hook(&core, "codex", "PermissionRequest", tool.clone());
-    status(NeedsInput, 2);
+    status(Blocked, 2);
     hook(&core, "codex", "PostToolUse", tool);
-    status(Working, 2);
+    status(Running, 2);
     hook(
         &core,
         "codex",
         "Stop",
         json!({"turn_id": "one", "stop_hook_active": false}),
     );
-    status(Idle, 2);
+    status(Done, 2);
 
     hook(&core, "codex", "SessionEnd", json!({"reason": "other"}));
     assert_eq!(
@@ -124,7 +124,7 @@ fn codex_hooks_track_permission_requests_interrupts_and_session_end() {
             tool_count: 2,
         }]
     );
-    clock.advance(Duration::from_secs(60));
+    clock.advance(Duration::from_secs(600));
     assert!(sessions(&core).is_empty());
 }
 
@@ -273,7 +273,7 @@ fn installed_command_forwards_stdin_to_the_current_listener() {
     hook(&core, "codex", "Interrupt", json!({}));
     hook(&core, "codex", "UserPromptSubmit", json!({}));
     run();
-    assert_eq!(sessions(&core)[0].status, SessionStatus::Working);
+    assert_eq!(sessions(&core)[0].status, SessionStatus::Running);
 }
 
 #[test]

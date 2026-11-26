@@ -69,57 +69,57 @@ fn claude_hook_events_update_the_session_and_count_each_tool_once() {
     let core = start(home.path(), clock.clone());
 
     hook(&core, "one", "SessionStart", json!({"source": "startup"}));
-    status(&core, Idle, 0);
+    status(&core, Done, 0);
     hook(&core, "one", "UserPromptSubmit", json!({"prompt": "Hello"}));
-    status(&core, Working, 0);
+    status(&core, Running, 0);
     hook(&core, "one", "Stop", json!({"stop_hook_active": false}));
-    status(&core, Idle, 0);
+    status(&core, Done, 0);
     hook(
         &core,
         "one",
         "PreToolUse",
         json!({"tool_name": "Bash", "tool_input": {}, "tool_use_id": "toolu_1"}),
     );
-    status(&core, Working, 1);
+    status(&core, Running, 1);
     hook(
         &core,
         "one",
         "PermissionRequest",
         json!({"tool_name": "Bash", "tool_input": {}}),
     );
-    status(&core, NeedsInput, 1);
+    status(&core, Blocked, 1);
     hook(
         &core,
         "one",
         "PostToolUse",
         json!({"tool_name": "Bash", "tool_input": {}, "tool_use_id": "toolu_1", "tool_response": {}}),
     );
-    status(&core, Working, 1);
+    status(&core, Running, 1);
     hook(
         &core,
         "one",
         "Notification",
         json!({"message": "Waiting", "notification_type": "idle_prompt"}),
     );
-    status(&core, Working, 1);
+    status(&core, Running, 1);
     hook(
         &core,
         "one",
         "Notification",
         json!({"message": "Allow?", "notification_type": "permission_prompt"}),
     );
-    status(&core, NeedsInput, 1);
+    status(&core, Blocked, 1);
     hook(
         &core,
         "one",
         "PostToolUseFailure",
         json!({"tool_name": "Bash", "tool_input": {}, "error": "Interrupted", "is_interrupt": true}),
     );
-    status(&core, Idle, 1);
+    status(&core, Done, 1);
 
     clock.advance(Duration::from_secs(42));
     hook(&core, "one", "SessionEnd", json!({"reason": "other"}));
-    clock.advance(Duration::from_secs(59));
+    clock.advance(Duration::from_secs(599));
     hook(
         &core,
         "one",
@@ -141,7 +141,7 @@ fn claude_hook_events_update_the_session_and_count_each_tool_once() {
 }
 
 #[test]
-fn a_working_session_becomes_stuck_at_the_configured_threshold() {
+fn a_running_session_becomes_stalled_at_the_configured_threshold() {
     use SessionStatus::*;
 
     let home = TempDir::new().unwrap();
@@ -151,22 +151,22 @@ fn a_working_session_becomes_stuck_at_the_configured_threshold() {
     hook(&core, "one", "UserPromptSubmit", json!({"prompt": "Hello"}));
 
     clock.advance(Duration::from_secs(299));
-    status(&core, Working, 0);
+    status(&core, Running, 0);
     clock.advance(Duration::from_secs(1));
-    status(&core, Stuck, 0);
+    status(&core, Stalled, 0);
     hook(
         &core,
         "one",
         "PreToolUse",
         json!({"tool_use_id": "toolu_1"}),
     );
-    status(&core, Working, 1);
+    status(&core, Running, 1);
 
     core.set_stuck_threshold(Duration::from_secs(10));
     clock.advance(Duration::from_secs(9));
-    status(&core, Working, 1);
+    status(&core, Running, 1);
     clock.advance(Duration::from_secs(1));
-    status(&core, Stuck, 1);
+    status(&core, Stalled, 1);
     hook(
         &core,
         "one",
@@ -174,10 +174,10 @@ fn a_working_session_becomes_stuck_at_the_configured_threshold() {
         json!({"tool_name": "Bash"}),
     );
     clock.advance(Duration::from_secs(600));
-    status(&core, NeedsInput, 1);
+    status(&core, Blocked, 1);
     hook(&core, "one", "Stop", json!({"stop_hook_active": false}));
     clock.advance(Duration::from_secs(600));
-    status(&core, Idle, 1);
+    status(&core, Done, 1);
 }
 
 #[test]
@@ -206,10 +206,10 @@ fn sessions_already_running_are_hidden_until_restarted() {
     let listed = sessions(&core);
     assert_eq!(listed.len(), 2);
     assert_eq!(listed[0].session_id, "new");
-    assert_eq!(listed[0].status, SessionStatus::Idle);
+    assert_eq!(listed[0].status, SessionStatus::Done);
     assert_eq!(listed[1].session_id, "old");
     assert_eq!(listed[1].project_folder, PathBuf::from("/work/other"));
-    assert_eq!(listed[1].status, SessionStatus::Working);
+    assert_eq!(listed[1].status, SessionStatus::Running);
     assert_eq!(listed[1].tool_count, 0);
 }
 
@@ -244,7 +244,7 @@ fn only_the_local_api_accepts_hook_events_and_paired_phones_can_list_sessions() 
             json!({"source": "startup"}),
         ))
         .unwrap();
-    status(&core, SessionStatus::Idle, 0);
+    status(&core, SessionStatus::Done, 0);
 
     core.set_sharing_address_override(Some(Ipv4Addr::LOCALHOST.into()));
     let sharing = core.start_sharing().unwrap();

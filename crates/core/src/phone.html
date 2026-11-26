@@ -9,7 +9,7 @@
   :root {
     --bg: #f6f6f4; --surface: #ffffff; --surface-2: #ececea; --text: #1b1b1a; --muted: #6b6b66;
     --line: #dcdcd7; --accent: #3b5bdb; --accent-text: #ffffff; --error: #c92a2a;
-    --working: #2f9e44; --needs: #e8590c; --idle: #868e96; --stuck: #c92a2a; --ended: #adb5bd;
+    --running: #2f9e44; --blocked: #e8590c; --done: #2f9e44; --stalled: #c92a2a; --ended: #adb5bd;
     --triage-tag: #785000; --ready-tag: #176334; --progress-tag: #3251b5; --blocked-tag: #a82929;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   }
@@ -73,13 +73,38 @@
   .session-tag { flex: none; display: flex; align-items: center; gap: 8px; min-height: 52px; max-width: 100%;
     padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px; text-align: left; }
   .session-tag:active { background: var(--surface-2); }
-  .session-tag[data-status="needs_input"] { border-color: var(--needs); }
-  .session-tag[data-status="stuck"] { border-color: var(--stuck); }
-  .status-dot { width: 9px; height: 9px; flex: none; border-radius: 50%; background: var(--idle); }
-  [data-status="working"] .status-dot { background: var(--working); }
-  [data-status="needs_input"] .status-dot { background: var(--needs); }
-  [data-status="stuck"] .status-dot { background: var(--stuck); }
-  [data-status="ended"] .status-dot { background: var(--ended); }
+  .session-tag[data-status="blocked"] { border-color: var(--blocked); }
+  .session-tag[data-status="stalled"] { border-color: var(--stalled); }
+  .session-tag[data-status="ended"] { opacity: .55; }
+  .harness-icon { --status-color: var(--ended); position: relative; display: inline-grid; place-items: center;
+    width: 30px; height: 30px; flex: none; color: var(--status-color); }
+  .harness-icon::before { content: ""; position: absolute; inset: 1px; border: 2px solid currentColor;
+    border-radius: 50%; }
+  .harness-icon .glyph { position: relative; font: 700 19px/1 ui-monospace, monospace; }
+  .harness-icon[data-harness="codex"] .glyph { font-size: 23px; }
+  [data-status="running"] .harness-icon, .harness-icon[data-status="running"] { --status-color: var(--running); }
+  [data-status="blocked"] .harness-icon, .harness-icon[data-status="blocked"] { --status-color: var(--blocked); }
+  [data-status="done"] .harness-icon, .harness-icon[data-status="done"] { --status-color: var(--done); }
+  [data-status="stalled"] .harness-icon, .harness-icon[data-status="stalled"] { --status-color: var(--stalled); }
+  .harness-icon[data-status="ended"] { --status-color: var(--ended); opacity: .65; }
+  .harness-icon[data-status="running"]::before { border-top-color: transparent; animation: icon-spin 2s linear infinite; }
+  .harness-icon[data-status="running"][data-harness="claude"] .glyph { animation: icon-spin 8s linear infinite; }
+  .harness-icon[data-status="running"][data-harness="codex"] .glyph { animation: icon-blink 1s steps(1) infinite; }
+  .harness-icon[data-status="blocked"] { animation: icon-pulse 1.7s ease-in-out infinite; }
+  .harness-icon[data-status="done"] { animation: icon-breathe 3s ease-in-out infinite; }
+  .harness-icon[data-status="stalled"]::before { border-style: dashed; animation: icon-spin 9s linear infinite; }
+  .harness-icon[data-status="stalled"] .glyph { animation: icon-flicker 4s steps(1) infinite; }
+  .harness-icon[data-status="blocked"]::after, .harness-icon[data-status="done"]::after {
+    position: absolute; right: -5px; bottom: -5px; display: grid; place-items: center; width: 15px; height: 15px;
+    border-radius: 50%; color: white; font: 700 12px/1 sans-serif; background: var(--status-color); }
+  .harness-icon[data-status="blocked"]::after { content: "!"; }
+  .harness-icon[data-status="done"]::after { content: "✓"; }
+  @keyframes icon-spin { to { transform: rotate(360deg); } }
+  @keyframes icon-blink { 50% { opacity: .2; } }
+  @keyframes icon-pulse { 50% { filter: drop-shadow(0 0 6px currentColor); opacity: .65; } }
+  @keyframes icon-breathe { 50% { transform: scale(1.08); } }
+  @keyframes icon-flicker { 25%, 30%, 75% { opacity: .45; } }
+  @media (prefers-reduced-motion: reduce) { .harness-icon, .harness-icon::before, .harness-icon .glyph { animation: none !important; } }
   .session-label { min-width: 0; }
   .session-name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
   .session-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 3px 7px; margin-top: 3px;
@@ -311,7 +336,7 @@
   }
 
   const SESSION_POLL_MS = 3000;
-  const sessionLabels = { working: 'Working', needs_input: 'Needs input', idle: 'Idle', ended: 'Ended', stuck: 'Stuck' };
+  const sessionLabels = { running: 'Running', blocked: 'Blocked', done: 'Done', stalled: 'Stalled', ended: 'Ended' };
   const sessionCards = new Map();
   const palette = { page: 'palette' };
   let route = palette, sessions = null, pollingSessions = false, sessionError = '';
@@ -389,13 +414,14 @@
       let card = sessionCards.get(sid);
       if (!card) {
         card = el('button', { className: 'session-tag', type: 'button', onclick: () => openPage('session', sid) },
-          dot(), el('span', { className: 'session-label' }));
+          harnessIcon(session), el('span', { className: 'session-label' }));
         sessionCards.set(sid, card);
       }
       const snapshot = JSON.stringify(session);
       if (card.dataset.snapshot !== snapshot) {
         card.dataset.snapshot = snapshot;
         card.dataset.status = session.status;
+        card.firstElementChild.dataset.status = session.status;
         card.lastElementChild.replaceChildren(el('strong', { className: 'session-name', textContent: projectName(session.project_folder) }),
           sessionMeta(session));
       }
@@ -408,8 +434,12 @@
     }
   }
 
-  function dot() {
-    return el('span', { className: 'status-dot', ariaHidden: 'true' });
+  function harnessIcon(session) {
+    const icon = el('span', { className: 'harness-icon', ariaHidden: 'true' },
+      el('span', { className: 'glyph', textContent: session.harness === 'claude' ? '✳' : session.harness === 'codex' ? '▌' : '◆' }));
+    icon.dataset.harness = session.harness;
+    icon.dataset.status = session.status;
+    return icon;
   }
 
   function renderSession(sid) {
@@ -424,7 +454,7 @@
     }
     $('detail-title').textContent = projectName(session.project_folder);
     const meta = sessionMeta(session);
-    meta.prepend(dot());
+    meta.prepend(harnessIcon(session));
     body.replaceChildren(meta, el('p', { className: 'project-path', textContent: session.project_folder }));
     if (!actions.firstElementChild) actions.append(el('button', {
       type: 'button', className: 'action primary', textContent: 'Pending tickets',

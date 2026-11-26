@@ -69,9 +69,12 @@ fn the_agent_sheet_polls_sessions_while_visible_and_supports_back_navigation() {
     assert!(page.contains(
         "No agent sessions. Install hooks in the Pad to see Claude Code and Codex sessions."
     ));
-    for status in ["'Working'", "'Needs input'", "'Idle'", "'Stuck'", "'Ended'"] {
+    for status in ["'Running'", "'Blocked'", "'Done'", "'Stalled'", "'Ended'"] {
         assert!(page.contains(status), "missing session label {status}");
     }
+    assert!(page.contains("prefers-reduced-motion: reduce"));
+    assert!(page.contains("icon.dataset.harness = session.harness"));
+    assert!(page.contains("icon.dataset.status = session.status"));
     assert!(page.contains("history.pushState(") && page.contains("addEventListener('popstate'"));
     assert!(page.contains("$('back').addEventListener('click', () => history.back())"));
 }

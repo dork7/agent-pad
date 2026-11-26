@@ -4,13 +4,15 @@
 
 **Blocked by:** #14, #15
 
-**Status:** ready-for-agent
+**Status:** done (manual checks pending)
 
 **GitHub:** #20
 
-- [ ] Status labels read Running, Blocked, Done and Stalled everywhere a status appears, and the glossary and docs use the same words
-- [ ] Blocked covers permission requests, Done covers a finished turn, Stalled keeps the existing no-events-for-the-threshold rule
-- [ ] Each harness shows its own icon; real logos are used where licensing allows and a neutral stand-in glyph otherwise
-- [ ] Each status has its own motion and badge as described, and nothing moves when the phone asks for reduced motion
+- [x] Status labels read Running, Blocked, Done and Stalled everywhere a status appears, and the glossary and docs use the same words
+- [x] Blocked covers permission requests, Done covers a finished turn, Stalled keeps the existing no-events-for-the-threshold rule
+- [x] Each harness shows its own icon; real logos are used where licensing allows and a neutral stand-in glyph otherwise
+- [x] Each status has its own motion and badge as described, and nothing moves when the phone asks for reduced motion
 - [ ] Ended sessions are greyed and removed 10 minutes after they end
 - [ ] Existing status tests are updated to the new names and still pass
+
+Manual visual checks remain. `cargo test --workspace --no-run` passes, but this sandbox denies the local listener used by the HTTP integration tests (`Operation not permitted`); the last two checks need a run where loopback binding is allowed.

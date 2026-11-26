@@ -336,11 +336,39 @@ h4 { margin: 0; font-size: 13px; }
   gap: 4px 10px;
 }
 .session-status { gap: 5px; color: var(--muted); font-weight: 600; }
-.session-status .dot { background: currentColor; }
-.session-status[data-status="working"] { color: var(--ready-tag); }
-.session-status[data-status="needs_input"] { color: var(--triage-tag); }
-.session-status[data-status="stuck"] { color: var(--blocked-tag); }
-.session-status[data-status="idle"] { color: var(--progress-tag); }
+.session-status[data-status="running"] { color: var(--ready-tag); }
+.session-status[data-status="blocked"] { color: var(--triage-tag); }
+.session-status[data-status="stalled"] { color: var(--blocked-tag); }
+.session-status[data-status="done"] { color: var(--ready-tag); }
+.session-card:has(.harness-icon[data-status="ended"]) { opacity: .55; }
+.harness-icon { --status-color: var(--muted); position: relative; display: inline-grid; place-items: center;
+  width: 30px; height: 30px; flex: none; color: var(--status-color); }
+.harness-icon::before { content: ""; position: absolute; inset: 1px; border: 2px solid currentColor; border-radius: 50%; }
+.harness-icon .glyph { position: relative; font: 700 19px/1 ui-monospace, monospace; }
+.harness-icon[data-harness="codex"] .glyph { font-size: 23px; }
+.harness-icon[data-status="running"] { --status-color: var(--ready-tag); }
+.harness-icon[data-status="blocked"] { --status-color: var(--triage-tag); }
+.harness-icon[data-status="done"] { --status-color: var(--ready-tag); }
+.harness-icon[data-status="stalled"] { --status-color: var(--blocked-tag); }
+.harness-icon[data-status="ended"] { opacity: .65; }
+.harness-icon[data-status="running"]::before { border-top-color: transparent; animation: icon-spin 2s linear infinite; }
+.harness-icon[data-status="running"][data-harness="claude"] .glyph { animation: icon-spin 8s linear infinite; }
+.harness-icon[data-status="running"][data-harness="codex"] .glyph { animation: icon-blink 1s steps(1) infinite; }
+.harness-icon[data-status="blocked"] { animation: icon-pulse 1.7s ease-in-out infinite; }
+.harness-icon[data-status="done"] { animation: icon-breathe 3s ease-in-out infinite; }
+.harness-icon[data-status="stalled"]::before { border-style: dashed; animation: icon-spin 9s linear infinite; }
+.harness-icon[data-status="stalled"] .glyph { animation: icon-flicker 4s steps(1) infinite; }
+.harness-icon[data-status="blocked"]::after, .harness-icon[data-status="done"]::after {
+  position: absolute; right: -5px; bottom: -5px; display: grid; place-items: center; width: 15px; height: 15px;
+  border-radius: 50%; color: white; font: 700 12px/1 sans-serif; background: var(--status-color); }
+.harness-icon[data-status="blocked"]::after { content: "!"; }
+.harness-icon[data-status="done"]::after { content: "✓"; }
+@keyframes icon-spin { to { transform: rotate(360deg); } }
+@keyframes icon-blink { 50% { opacity: .2; } }
+@keyframes icon-pulse { 50% { filter: drop-shadow(0 0 6px currentColor); opacity: .65; } }
+@keyframes icon-breathe { 50% { transform: scale(1.08); } }
+@keyframes icon-flicker { 25%, 30%, 75% { opacity: .45; } }
+@media (prefers-reduced-motion: reduce) { .harness-icon, .harness-icon::before, .harness-icon .glyph { animation: none !important; } }
 .numerical { font-variant-numeric: tabular-nums; }
 
 dialog {

@@ -1,5 +1,5 @@
 //! In-memory session state. Ended sessions retain their final elapsed time and
-//! disappear after one minute. A Core restart starts with an empty session list.
+//! disappear after ten minutes. A Core restart starts with an empty session list.
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{Core, State};
 
-const ENDED_RETENTION: Duration = Duration::from_secs(60);
+const ENDED_RETENTION: Duration = Duration::from_secs(10 * 60);
 
 /// Display after installing Claude Code hooks.
 pub const CLAUDE_HOOKS_RESTART_NOTICE: &str =
@@ -18,11 +18,11 @@ pub const CLAUDE_HOOKS_RESTART_NOTICE: &str =
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SessionStatus {
-    Working,
-    NeedsInput,
-    Idle,
+    Running,
+    Blocked,
+    Done,
     Ended,
-    Stuck,
+    Stalled,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -94,7 +94,7 @@ impl Sessions {
                 key,
                 TrackedSession {
                     project_folder: cwd,
-                    status: SessionStatus::Idle,
+                    status: SessionStatus::Done,
                     started: now,
                     last_event: now,
                     tool_count: 0,
@@ -113,13 +113,13 @@ impl Sessions {
         session.last_event = now;
         session.status = match event {
             Event::Start => unreachable!("start handled above"),
-            Event::Working => SessionStatus::Working,
+            Event::Working => SessionStatus::Running,
             Event::ToolStarted => {
                 session.tool_count += 1;
-                SessionStatus::Working
+                SessionStatus::Running
             }
-            Event::Permission => SessionStatus::NeedsInput,
-            Event::Stop => SessionStatus::Idle,
+            Event::Permission => SessionStatus::Blocked,
+            Event::Stop => SessionStatus::Done,
             Event::End => SessionStatus::Ended,
         };
     }
@@ -137,10 +137,10 @@ impl Sessions {
             .iter()
             .map(|((harness, id), session)| {
                 let status = match session.status {
-                    SessionStatus::Working
+                    SessionStatus::Running
                         if now.duration_since(session.last_event) >= self.stuck_threshold =>
                     {
-                        SessionStatus::Stuck
+                        SessionStatus::Stalled
                     }
                     status => status,
                 };
@@ -174,7 +174,7 @@ impl Core {
         self.state.list_sessions()
     }
 
-    /// Change the working-to-stuck timeout. It is saved in settings.
+    /// Change the running-to-stalled timeout. It is saved in settings.
     pub fn set_stuck_threshold(&self, threshold: Duration) {
         self.state.sessions.lock().unwrap().stuck_threshold = threshold;
         let saved = self.state.change_settings(|s| {
@@ -186,7 +186,7 @@ impl Core {
         }
     }
 
-    /// The working-to-stuck timeout.
+    /// The running-to-stalled timeout.
     pub fn stuck_threshold(&self) -> Duration {
         self.state.sessions.lock().unwrap().stuck_threshold
     }

@@ -45,7 +45,7 @@ One running conversation of an agent in a harness, in a project folder, as repor
 _Avoid_: Agent, process, run
 
 **Status**:
-A session's current state, shown on the phone: Running, Blocked (waiting for the user), Done (turn finished, idle), or Stalled (running with no events for a set time). Ended sessions leave the list after a short while.
+A session's current state, shown on the phone: Running, Blocked (waiting for the user), Done (turn finished, idle), or Stalled (running with no events for a set time). Ended sessions are greyed and leave the list 10 minutes after they end.
 _Avoid_: Progress, health, state
 
 **Home**:

@@ -4,11 +4,11 @@ const sessionHarnesses = [
 ];
 const sessionHarnessNames = new Map(sessionHarnesses);
 const sessionStatuses = {
-  working: "Working",
-  needs_input: "Needs input",
-  idle: "Idle",
+  running: "Running",
+  blocked: "Blocked",
+  done: "Done",
+  stalled: "Stalled",
   ended: "Ended",
-  stuck: "Stuck",
 };
 
 byId("session-settings").addEventListener("click", () => {
@@ -166,7 +166,7 @@ function sessionPreference(label, input, read, write, reset = null) {
 }
 
 byId("threshold-setting").append(sessionPreference(
-  "Mark stuck after (seconds)",
+  "Mark stalled after (seconds)",
   el("input", { type: "number", min: 1, max: 4294967295, required: true }),
   () => invoke("stuck_threshold"),
   (seconds) => invoke("set_stuck_threshold", { seconds: Number(seconds) }),
@@ -201,12 +201,20 @@ function elapsedTime(seconds) {
   return hours ? `${hours}:${String(minutes).padStart(2, "0")}:${remainder}` : `${minutes}:${remainder}`;
 }
 
+function sessionIcon(session) {
+  const icon = el("span", { className: "harness-icon", ariaHidden: "true" },
+    el("span", { className: "glyph", textContent: session.harness === "claude" ? "✳" : session.harness === "codex" ? "▌" : "◆" }));
+  icon.dataset.harness = session.harness;
+  icon.dataset.status = session.status;
+  return icon;
+}
+
 function sessionCard(session) {
   const name = el("b", { className: "path" });
   const harness = el("span", { className: "muted" });
   const status = el("span", { className: "session-status" });
   const statusText = document.createTextNode("");
-  status.append(el("span", { className: "dot", ariaHidden: "true" }), statusText);
+  status.append(statusText);
   const elapsed = el("span", { className: "muted numerical" });
   const tools = el("span", { className: "muted numerical" });
   const card = { session, name, harness, status, statusText, elapsed, tools };
@@ -214,7 +222,7 @@ function sessionCard(session) {
   card.action = action;
   card.item = el("li", { className: "session-card" },
     el("div", { className: "session-main" },
-      el("div", { className: "session-project" }, name, harness),
+      el("div", { className: "session-project" }, sessionIcon(session), name, harness),
       el("div", { className: "session-meta" }, status, elapsed, tools)),
     action);
   return card;
@@ -245,6 +253,7 @@ async function refreshSessions() {
         byId("sessions").append(card.item);
       }
       card.session = session;
+      card.item.querySelector(".harness-icon").dataset.status = session.status;
       const project = folderName(session.project_folder);
       card.name.textContent = project;
       card.name.title = session.project_folder;
