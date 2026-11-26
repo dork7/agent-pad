@@ -121,6 +121,7 @@ fn codex_hooks_track_permission_requests_interrupts_and_session_end() {
             project_folder: PathBuf::from("/work/project"),
             status: Ended,
             elapsed_seconds: 300,
+            last_event_seconds: 0,
             tool_count: 2,
         }]
     );

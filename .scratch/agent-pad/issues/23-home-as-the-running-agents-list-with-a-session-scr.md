@@ -4,14 +4,14 @@
 
 **Blocked by:** #20, #5
 
-**Status:** ready-for-agent
+**Status:** done (manual checks pending)
 
 **GitHub:** #21
 
-- [ ] Home lists sessions that the phone's View allows, ordered by urgency
-- [ ] Tapping a session opens its Session screen with the header and that harness's skill picker
-- [ ] A phone can only open sessions for harnesses in its View
-- [ ] All skills opens the pad without a session and pastes at the cursor as before
-- [ ] Empty state with no sessions, and the "status is off" state without hooks, both explain what to do and keep All skills one tap away
-- [ ] A back control returns to Home and keeps the scroll position
+- [x] Home lists sessions that the phone's View allows, ordered by urgency
+- [x] Tapping a session opens its Session screen with the header and that harness's skill picker
+- [x] A phone can only open sessions for harnesses in its View
+- [x] All skills opens the pad without a session and pastes at the cursor as before
+- [x] Empty state with no sessions, and the "status is off" state without hooks, both explain what to do and keep All skills one tap away
+- [x] A back control returns to Home and keeps the scroll position
 - [ ] Covered by Core tests for session ordering and View filtering, and a manual check on a real phone

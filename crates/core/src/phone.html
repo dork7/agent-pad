@@ -63,19 +63,6 @@
   .search:focus { border-color: var(--accent); }
 
   .dock { border-radius: 22px 22px 0 0; }
-  .agent-sheet { border-bottom: 1px solid var(--line); margin-bottom: 10px; }
-  .sheet-toggle { display: flex; width: 100%; min-height: 44px; flex-direction: column; align-items: center;
-    justify-content: center; gap: 5px; color: var(--muted); font-size: 14px; font-weight: 600; touch-action: none; }
-  .grip { width: 40px; height: 5px; border-radius: 3px; background: var(--line); }
-  .sheet-scrim { position: fixed; inset: 0; z-index: 19; background: #0006; }
-  .sessions { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding: 4px 4px 10px; }
-  .sessions.open { display: grid; overflow: auto; max-height: min(42vh, 22rem); }
-  .session-tag { flex: none; display: flex; align-items: center; gap: 8px; min-height: 52px; max-width: 100%;
-    padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px; text-align: left; }
-  .session-tag:active { background: var(--surface-2); }
-  .session-tag[data-status="blocked"] { border-color: var(--blocked); }
-  .session-tag[data-status="stalled"] { border-color: var(--stalled); }
-  .session-tag[data-status="ended"] { opacity: .55; }
   .harness-icon { --status-color: var(--ended); position: relative; display: inline-grid; place-items: center;
     width: 30px; height: 30px; flex: none; color: var(--status-color); }
   .harness-icon::before { content: ""; position: absolute; inset: 1px; border: 2px solid currentColor;
@@ -110,7 +97,17 @@
   .session-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 3px 7px; margin-top: 3px;
     color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
   .harness { background: var(--surface-2); border-radius: 6px; padding: 2px 5px; }
-  .sheet-message { margin: 0; color: var(--muted); padding: 3px 4px; font-size: 14px; line-height: 1.4; }
+  .home-card { width: 100%; display: flex; align-items: center; gap: 12px; min-height: 76px;
+    padding: 12px; margin: 8px 0; border: 1px solid var(--line); border-radius: 16px;
+    background: var(--surface); text-align: left; }
+  .home-card[data-status="blocked"] { border-color: var(--blocked); }
+  .home-card[data-status="stalled"] { border-color: var(--stalled); }
+  .home-card[data-status="ended"] { opacity: .6; }
+  .home-card .session-label { flex: 1; }
+  .home-entry { margin-top: 20px; border-color: var(--accent); font-weight: 600; }
+  .picker-back { min-height: 44px; margin: 0 0 12px; color: var(--accent); font-weight: 600; }
+  .session-header { padding: 8px 0 16px; border-bottom: 1px solid var(--line); margin-bottom: 8px; }
+  .session-header h2 { margin: 0 0 6px; font-size: 24px; overflow-wrap: anywhere; }
 
   #detail { overflow-wrap: anywhere; }
   #detail-title { font-size: 25px; line-height: 1.18; margin: 8px 0 16px; }
@@ -157,7 +154,14 @@
 </head>
 <body>
 <main>
-  <div id="palette">
+  <section id="home" aria-labelledby="home-title">
+    <h1 id="home-title">Home</h1>
+    <div id="sessions" role="list"></div>
+    <button id="all-skills" class="home-card home-entry" type="button">All skills <span aria-hidden="true">›</span></button>
+  </section>
+  <div id="palette" hidden>
+    <button id="picker-back" class="picker-back" type="button">‹ Home</button>
+    <div id="session-header" class="session-header" hidden></div>
     <h1>Agent Pad</h1>
     <div id="list" role="list"></div>
   </div>
@@ -167,15 +171,8 @@
     <div id="detail-body"></div>
   </section>
 </main>
-<div id="sheet-scrim" class="sheet-scrim" hidden aria-hidden="true"></div>
-<div class="dock">
-  <div id="palette-dock">
-    <section class="agent-sheet" aria-label="Agent sessions">
-      <button id="sheet-toggle" class="sheet-toggle" type="button" aria-expanded="false" aria-controls="sessions">
-        <span class="grip" aria-hidden="true"></span><span>Agent sessions</span>
-      </button>
-      <div id="sessions" class="sessions"></div>
-    </section>
+<div class="dock" hidden>
+  <div id="palette-dock" hidden>
     <nav id="tabs" class="tabs" role="tablist" aria-label="Harnesses"></nav>
     <input id="q" class="search" type="search" placeholder="Search skills" autocomplete="off" enterkeyhint="search" aria-label="Search skills">
   </div>
@@ -243,8 +240,15 @@
 
   const SNIPPETS_TAB = '__snippets';
   // Harness tabs, plus a Snippets tab when this phone has snippets.
-  const tabs = () => harnesses.map(h => ({ id: h.id, name: h.name, count: h.skill_count }))
-    .concat(snippets.length ? [{ id: SNIPPETS_TAB, name: 'Snippets', count: snippets.length }] : []);
+  const tabs = () => {
+    const selected = route.page === 'session' ? sessions?.find(s => s.session_id === route.sid)?.harness : null;
+    const visible = selected ? harnesses.filter(h => h.id === selected || h.id === 'shared') : harnesses;
+    if (selected && !visible.some(h => h.id === selected)) {
+      visible.unshift({ id: selected, name: selected === 'claude' ? 'Claude Code' : selected === 'codex' ? 'Codex' : selected, skill_count: 0 });
+    }
+    return visible.map(h => ({ id: h.id, name: h.name, count: h.skill_count }))
+      .concat(snippets.length ? [{ id: SNIPPETS_TAB, name: 'Snippets', count: snippets.length }] : []);
+  };
 
   function render() {
     $('tabs').replaceChildren(...tabs().map(t => el('button', {
@@ -338,8 +342,8 @@
   const SESSION_POLL_MS = 3000;
   const sessionLabels = { running: 'Running', blocked: 'Blocked', done: 'Done', stalled: 'Stalled', ended: 'Ended' };
   const sessionCards = new Map();
-  const palette = { page: 'palette' };
-  let route = palette, sessions = null, pollingSessions = false, sessionError = '';
+  const home = { page: 'home' };
+  let route = home, sessions = null, pollingSessions = false, sessionError = '', homeScroll = 0, hooksInstalled = null;
   let implementConfirmed = false, sendingTicket = false;
 
   function projectName(path) {
@@ -380,6 +384,10 @@
       const response = await fetch('/sessions', { cache: 'no-store' });
       if (!response.ok) throw new Error(await responseError(response, 'Could not load agent sessions.'));
       sessions = await response.json();
+      if (!sessions.length) {
+        const hooks = await fetch('/hook-status', { cache: 'no-store' });
+        hooksInstalled = hooks.ok ? (await hooks.json()).installed : null;
+      }
       sessionError = '';
     } catch (error) {
       sessionError = error.message;
@@ -387,33 +395,39 @@
       pollingSessions = false;
     }
     renderSessions();
-    if (route.page === 'session') renderSession(route.sid);
+    if (route.page === 'session') {
+      if (sessions && !sessions.some(s => s.session_id === route.sid)) {
+        history.replaceState({ phone: home }, '');
+        showPage(home);
+      }
+      else renderSession(route.sid);
+    }
   }
 
   function renderSessions() {
     const items = $('sessions');
     if (sessionError || !sessions?.length) {
-      if (items.contains(document.activeElement)) $('sheet-toggle').focus();
       sessionCards.clear();
-      items.replaceChildren(el('p', { className: 'sheet-message', textContent: sessionError || (sessions
-        ? 'No agent sessions. Install hooks in the Pad to see Claude Code and Codex sessions.'
+      items.replaceChildren(el('p', { className: 'empty', textContent: sessionError || (sessions
+        ? hooksInstalled === false
+          ? 'Status is off. Install hooks in the Pad on your computer to see agent sessions here.'
+          : 'Agents appear here when they start. Sessions opened before hooks were installed appear after you restart them.'
         : 'Loading agent sessions…') }));
       return;
     }
-    const ids = new Set(sessions.map(session => session.session_id));
+    const ids = new Set(sessions.map(session => session.harness + ':' + session.session_id));
     for (const [sid, card] of sessionCards) {
       if (ids.has(sid)) continue;
-      if (document.activeElement === card) $('sheet-toggle').focus();
       card.remove();
       sessionCards.delete(sid);
     }
-    items.querySelector('.sheet-message')?.remove();
+    items.querySelector('.empty')?.remove();
     let position = items.firstElementChild;
     for (const session of sessions) {
-      const sid = session.session_id;
+      const sid = session.harness + ':' + session.session_id;
       let card = sessionCards.get(sid);
       if (!card) {
-        card = el('button', { className: 'session-tag', type: 'button', onclick: () => openPage('session', sid) },
+        card = el('button', { className: 'home-card', type: 'button', onclick: () => openPage('session', session.session_id) },
           harnessIcon(session), el('span', { className: 'session-label' }));
         sessionCards.set(sid, card);
       }
@@ -444,22 +458,22 @@
 
   function renderSession(sid) {
     const session = sessions?.find(item => item.session_id === sid);
-    const body = $('detail-body');
-    const actions = $('detail-action');
+    const header = $('session-header');
     if (sessionError || !session) {
-      $('detail-title').textContent = 'Agent session';
-      if (actions.contains(document.activeElement)) $('detail-title').focus();
-      showDetailMessage(sessionError || (sessions ? 'This session is no longer available.' : 'Loading agent session…'));
+      header.replaceChildren(el('p', { className: 'empty', textContent: sessionError || 'Loading agent session…' }));
       return;
     }
-    $('detail-title').textContent = projectName(session.project_folder);
     const meta = sessionMeta(session);
     meta.prepend(harnessIcon(session));
-    body.replaceChildren(meta, el('p', { className: 'project-path', textContent: session.project_folder }));
-    if (!actions.firstElementChild) actions.append(el('button', {
-      type: 'button', className: 'action primary', textContent: 'Pending tickets',
-      onclick: () => openPage('tickets', sid),
-    }));
+    header.replaceChildren(el('h2', { textContent: projectName(session.project_folder) }), meta,
+      el('p', { className: 'project-path', textContent: session.project_folder }),
+      el('p', { className: 'session-meta', textContent: `Last event ${elapsed(session.last_event_seconds)} ago` }),
+      el('button', { type: 'button', className: 'action', textContent: 'Pending tickets',
+        onclick: () => openPage('tickets', sid) }));
+    if (!tabs().some(t => t.id === active)) {
+      active = session.harness;
+      render();
+    }
   }
 
   function ticketsPath(sid, tid) {
@@ -580,6 +594,7 @@
   }
 
   function openPage(page, sid, tid) {
+    if (route.page === 'home') homeScroll = window.scrollY;
     const next = { page, sid, tid };
     history.pushState({ phone: next }, '');
     showPage(next);
@@ -588,23 +603,36 @@
   function showPage(next) {
     const previous = route;
     route = next;
-    const expanded = next.page === 'agents';
-    const detail = next.page !== 'palette' && !expanded;
-    $('palette').hidden = $('palette-dock').hidden = detail;
-    $('palette').inert = expanded;
-    $('sheet-scrim').hidden = !expanded;
+    const picker = next.page === 'palette' || next.page === 'session';
+    const detail = next.page === 'tickets' || next.page === 'ticket';
+    $('home').hidden = next.page !== 'home';
+    $('palette').hidden = $('palette-dock').hidden = !picker;
     $('detail').hidden = $('detail-dock').hidden = !detail;
-    $('sheet-toggle').ariaExpanded = String(expanded);
-    $('sessions').classList.toggle('open', expanded);
-    if (!detail) {
-      (sessionCards.get(previous.sid) || $('sheet-toggle')).focus();
+    $('session-header').hidden = next.page !== 'session';
+    document.querySelector('.dock').hidden = next.page === 'home';
+    if (next.page === 'home') {
+      requestAnimationFrame(() => window.scrollTo(0, homeScroll));
       return;
     }
-    $('detail-label').textContent = next.page === 'session' ? 'Agent session' : 'Project tickets';
-    $('detail-title').textContent = { session: 'Agent session', tickets: 'Pending tickets', ticket: 'Ticket' }[next.page];
+    if (next.page === 'palette') {
+      $('q').value = '';
+      if (!tabs().some(t => t.id === active)) active = tabs()[0]?.id || null;
+      render();
+      window.scrollTo(0, 0);
+      return;
+    }
+    if (next.page === 'session') {
+      active = sessions?.find(s => s.session_id === next.sid)?.harness || null;
+      $('q').value = '';
+      renderSession(next.sid);
+      render();
+      window.scrollTo(0, 0);
+      return;
+    }
+    $('detail-label').textContent = 'Project tickets';
+    $('detail-title').textContent = { tickets: 'Pending tickets', ticket: 'Ticket' }[next.page];
     showDetailMessage('Loading…');
-    if (next.page === 'session') renderSession(next.sid);
-    else loadTickets(next, previous);
+    loadTickets(next, previous);
     window.scrollTo(0, 0);
     const pending = $('detail-action').firstElementChild;
     if (previous.page === 'tickets' && pending) pending.focus();
@@ -740,27 +768,13 @@
   document.addEventListener('pointerdown', keepAwake, { passive: true });
   $('q').addEventListener('input', render);
 
-  const toggleSheet = () => route.page === 'agents' ? history.back() : openPage('agents');
-  let swipeStart = null, sheetSwiped = false;
-  $('sheet-toggle').addEventListener('pointerdown', event => {
-    swipeStart = event.clientY;
-    sheetSwiped = false;
-    event.currentTarget.setPointerCapture(event.pointerId);
-  });
-  $('sheet-toggle').addEventListener('pointerup', event => {
-    const distance = event.clientY - swipeStart;
-    sheetSwiped = swipeStart !== null && Math.abs(distance) > 32;
-    swipeStart = null;
-    if (sheetSwiped && (distance < 0) !== (route.page === 'agents')) toggleSheet();
-  });
-  $('sheet-toggle').addEventListener('pointercancel', () => { swipeStart = null; });
-  $('sheet-toggle').addEventListener('click', event => { if (!sheetSwiped || !event.detail) toggleSheet(); });
-  $('sheet-scrim').addEventListener('click', toggleSheet);
+  $('all-skills').addEventListener('click', () => openPage('palette'));
+  $('picker-back').addEventListener('click', () => history.back());
   $('back').addEventListener('click', () => history.back());
   window.addEventListener('popstate', event => {
     const note = $('implement-note');
     if (note.open) note.close();
-    showPage(event.state?.phone || palette);
+    showPage(event.state?.phone || home);
   });
   new ResizeObserver(() => {
     const height = document.querySelector('.dock').offsetHeight;
@@ -768,8 +782,9 @@
   }).observe(document.querySelector('.dock'));
 
   // Drop the token from the address bar; the cookie carries it from now on.
-  if (location.search.includes('token=')) history.replaceState({ phone: palette }, '', '/');
-  if (history.state?.phone?.page !== undefined && history.state.phone.page !== 'palette') showPage(history.state.phone);
+  showPage(home);
+  if (location.search.includes('token=')) history.replaceState({ phone: home }, '', '/');
+  if (history.state?.phone?.page !== undefined && history.state.phone.page !== 'home') showPage(history.state.phone);
   renderSessions();
   pollSessions();
   keepAwake();

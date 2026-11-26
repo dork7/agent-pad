@@ -132,6 +132,7 @@ fn claude_hook_events_update_the_session_and_count_each_tool_once() {
         project_folder: PathBuf::from("/work/project"),
         status: Ended,
         elapsed_seconds: 42,
+        last_event_seconds: 599,
         tool_count: 1,
     };
     assert_eq!(sessions(&core), vec![expected.clone()]);
@@ -205,12 +206,12 @@ fn sessions_already_running_are_hidden_until_restarted() {
     );
     let listed = sessions(&core);
     assert_eq!(listed.len(), 2);
-    assert_eq!(listed[0].session_id, "new");
-    assert_eq!(listed[0].status, SessionStatus::Done);
-    assert_eq!(listed[1].session_id, "old");
-    assert_eq!(listed[1].project_folder, PathBuf::from("/work/other"));
-    assert_eq!(listed[1].status, SessionStatus::Running);
-    assert_eq!(listed[1].tool_count, 0);
+    assert_eq!(listed[0].session_id, "old");
+    assert_eq!(listed[0].project_folder, PathBuf::from("/work/other"));
+    assert_eq!(listed[0].status, SessionStatus::Running);
+    assert_eq!(listed[0].tool_count, 0);
+    assert_eq!(listed[1].session_id, "new");
+    assert_eq!(listed[1].status, SessionStatus::Done);
 }
 
 #[test]

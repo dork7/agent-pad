@@ -251,6 +251,9 @@ fn handle(state: &State, mut request: Request, token: &str) -> bool {
             (Method::Get, "/snippets") => server::json(&state.snippets_for_phone(device)).boxed(),
             (Method::Post, "/paste-snippet") => paste_snippet(state, device, &mut request).boxed(),
             (Method::Get, "/sessions") => server::json(&state.sessions_for_phone(device)).boxed(),
+            (Method::Get, "/hook-status") => server::json(&serde_json::json!({
+                "installed": state.hooks_installed()
+            })).boxed(),
             (Method::Get, path) if path.starts_with("/sessions/") => {
                 if sees_session(state, device, path) {
                     server::tickets_response(state, path).boxed()

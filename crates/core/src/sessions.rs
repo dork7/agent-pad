@@ -34,6 +34,9 @@ pub struct Session {
     pub project_folder: PathBuf,
     pub status: SessionStatus,
     pub elapsed_seconds: u64,
+    /// Time since the latest hook event, for the Session screen.
+    #[serde(default)]
+    pub last_event_seconds: u64,
     /// Number of tool calls observed at PreToolUse.
     pub tool_count: u64,
 }
@@ -133,7 +136,8 @@ impl Sessions {
 
     fn list(&mut self, now: Instant) -> Vec<Session> {
         self.expire_ended(now);
-        self.by_id
+        let mut listed: Vec<_> = self
+            .by_id
             .iter()
             .map(|((harness, id), session)| {
                 let status = match session.status {
@@ -155,16 +159,38 @@ impl Sessions {
                     project_folder: session.project_folder.clone(),
                     status,
                     elapsed_seconds: until.duration_since(session.started).as_secs(),
+                    last_event_seconds: now.duration_since(session.last_event).as_secs(),
                     tool_count: session.tool_count,
                 }
             })
-            .collect()
+            .collect();
+        listed.sort_by_key(|session| match session.status {
+            SessionStatus::Blocked => 0,
+            SessionStatus::Stalled => 1,
+            SessionStatus::Running => 2,
+            SessionStatus::Done => 3,
+            SessionStatus::Ended => 4,
+        });
+        listed
     }
 }
 
 impl State {
     pub(crate) fn list_sessions(&self) -> Vec<Session> {
         self.sessions.lock().unwrap().list(self.clock.now())
+    }
+
+    pub(crate) fn hooks_installed(&self) -> bool {
+        let claude = self.home.join(".claude/settings.json");
+        let codex_home = (std::env::home_dir().as_deref() == Some(self.home.as_path()))
+            .then(|| std::env::var_os("CODEX_HOME"))
+            .flatten()
+            .filter(|path| !path.is_empty())
+            .map(PathBuf::from)
+            .unwrap_or_else(|| self.home.join(".codex"));
+        [claude, codex_home.join("config.toml")].iter().any(|path| {
+            std::fs::read_to_string(path).is_ok_and(|contents| contents.contains("skills-pad-"))
+        })
     }
 }
 

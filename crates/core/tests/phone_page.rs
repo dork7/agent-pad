@@ -59,16 +59,19 @@ fn the_page_follows_the_phone_theme_and_puts_controls_in_thumb_reach() {
 }
 
 #[test]
-fn the_agent_sheet_polls_sessions_while_visible_and_supports_back_navigation() {
+fn home_polls_sessions_and_opens_the_harness_picker() {
     let page = phone_page();
     assert!(page.contains("const SESSION_POLL_MS = 3000;"));
     assert!(page.contains("setInterval(pollSessions, SESSION_POLL_MS)"));
     assert!(page.contains("if (document.hidden || pollingSessions) return;"));
     assert!(page.contains("fetch('/sessions', { cache: 'no-store' })"));
-    assert!(page.contains("aria-expanded=\"false\" aria-controls=\"sessions\""));
-    assert!(page.contains(
-        "No agent sessions. Install hooks in the Pad to see Claude Code and Codex sessions."
-    ));
+    assert!(page.contains("<section id=\"home\""));
+    assert!(page.contains("id=\"all-skills\""));
+    assert!(page.contains("Agents appear here when they start."));
+    assert!(page.contains("Sessions opened before hooks were installed appear after you restart them."));
+    assert!(page.contains("Install hooks in the Pad"));
+    assert!(page.contains("Last event ${elapsed(session.last_event_seconds)} ago"));
+    assert!(page.contains("h.id === selected || h.id === 'shared'"));
     for status in ["'Running'", "'Blocked'", "'Done'", "'Stalled'", "'Ended'"] {
         assert!(page.contains(status), "missing session label {status}");
     }
@@ -77,6 +80,8 @@ fn the_agent_sheet_polls_sessions_while_visible_and_supports_back_navigation() {
     assert!(page.contains("icon.dataset.status = session.status"));
     assert!(page.contains("history.pushState(") && page.contains("addEventListener('popstate'"));
     assert!(page.contains("$('back').addEventListener('click', () => history.back())"));
+    assert!(page.contains("$('picker-back').addEventListener('click', () => history.back())"));
+    assert!(page.contains("window.scrollTo(0, homeScroll)"));
 }
 
 #[test]
