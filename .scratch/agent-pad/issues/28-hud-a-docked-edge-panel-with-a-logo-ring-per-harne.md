@@ -4,13 +4,13 @@
 
 **Blocked by:** #20
 
-**Status:** ready-for-agent
+**Status:** done (manual checks pending)
 
 **GitHub:** #26
 
 - [ ] The HUD stays above other windows, can be dragged to any screen edge and remembers its place
-- [ ] One logo per harness with live sessions, using the animated icons from the status ticket
-- [ ] The ring colour follows the quota thresholds when quota data exists (ticket 30) and is neutral until it does
-- [ ] The logo animation reflects the most urgent status of that harness's sessions
-- [ ] A toggle in the Console shows or hides the HUD, and the choice persists
+- [x] One logo per harness with live sessions, using the animated icons from the status ticket
+- [x] The ring colour follows the quota thresholds when quota data exists (ticket 30) and is neutral until it does
+- [x] The logo animation reflects the most urgent status of that harness's sessions
+- [x] A toggle in the Console shows or hides the HUD, and the choice persists
 - [ ] Works on macOS and Windows; the notch mode is not part of this ticket

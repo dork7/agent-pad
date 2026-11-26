@@ -6,6 +6,7 @@
 pub mod clock;
 pub mod harness;
 mod hooks;
+mod hud;
 pub mod paste;
 pub mod phones;
 pub mod profiles;
@@ -28,6 +29,7 @@ use std::sync::{Arc, Mutex, RwLock};
 pub use clock::{Clock, SystemClock};
 pub use harness::{CustomHarness, Harness};
 pub use hooks::{ClaudeHooksPreview, CodexHooksPreview, CODEX_HOOKS_RESTART_NOTICE};
+pub use hud::{hud_summaries, quota_ring, HudRing, HudSummary};
 pub use paste::{PadWindow, Paster, SessionWindow, SystemPaster, SystemSessionWindow, WindowTarget};
 pub use phones::{Phone, PhoneError};
 pub use profiles::{Profile, ProfileError};

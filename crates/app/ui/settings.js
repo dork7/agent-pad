@@ -5,6 +5,21 @@ const customForm = byId("custom-form");
 const networkForm = byId("network-form");
 const networkAddress = byId("network-address");
 const templateEditors = new Map();
+const hudVisible = byId("hud-visible");
+
+invoke("hud_visible").then((visible) => {
+  hudVisible.checked = visible;
+  hudVisible.disabled = false;
+}).catch((error) => setMessage("hud-error", error));
+hudVisible.addEventListener("change", async () => {
+  hudVisible.disabled = true;
+  setMessage("hud-error", null);
+  try { await invoke("set_hud_visible", { visible: hudVisible.checked }); }
+  catch (error) {
+    hudVisible.checked = !hudVisible.checked;
+    setMessage("hud-error", error);
+  } finally { hudVisible.disabled = false; }
+});
 
 let inventoryRequest = 0;
 let inventoryBusy = false;
