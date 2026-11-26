@@ -9,6 +9,7 @@ fn session(harness: &str, status: SessionStatus) -> Session {
         project_folder: PathBuf::from("/work"),
         status,
         elapsed_seconds: 0,
+        last_event_seconds: 0,
         tool_count: 0,
     }
 }
