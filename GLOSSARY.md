@@ -44,6 +44,9 @@ _Avoid_: Preset, layout, scene
 One running conversation of an agent in a harness, in a project folder, as reported by that harness's hooks.
 _Avoid_: Agent, process, run
 
+**Subagent**:
+A child agent spawned by a session's main agent, or by another subagent. The harnesses do not report parents, so the parent is inferred from the spawn tool call.
+
 **Status**:
 A session's current state, shown on the phone: Running, Blocked (waiting for the user), Done (turn finished, idle), or Stalled (running with no events for a set time). Ended sessions are greyed and leave the list 10 minutes after they end.
 _Avoid_: Progress, health, state

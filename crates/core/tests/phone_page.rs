@@ -85,6 +85,21 @@ fn home_polls_sessions_and_opens_the_harness_picker() {
 }
 
 #[test]
+fn subagents_are_counted_on_home_and_rendered_as_a_live_tree_on_the_session_screen() {
+    let page = phone_page();
+    assert!(page.contains("agentCount(session.agents)"));
+    assert!(page.contains("${agentCount(session.agents)} subagents"));
+    assert!(page.contains("role: 'tree', ariaLabel: 'Subagents'"));
+    assert!(page.contains("role: 'group'"));
+    assert!(page.contains("role: 'treeitem'"));
+    assert!(page.contains("agent.agent_type || 'Subagent'"));
+    assert!(page.contains("agent.tool_count"));
+    assert!(page.contains("updateAgentTree(section.lastElementChild, session.agents, session.harness)"));
+    assert!(page.contains("section.hidden = !session.agents?.length"));
+    assert!(page.contains("if (item !== position) list.insertBefore(item, position)"));
+}
+
+#[test]
 fn ticket_reads_use_encoded_ids_and_render_read_only_content() {
     let page = phone_page();
     assert!(page.contains("`/sessions/${encodeURIComponent(sid)}/tickets`"));

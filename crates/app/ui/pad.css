@@ -328,7 +328,7 @@ h4 { margin: 0; font-size: 13px; }
   border-bottom: 1px solid var(--line);
 }
 .session-card:last-child { border-bottom: 0; padding-bottom: 0; }
-.session-main { min-width: 0; display: grid; gap: 5px; }
+.session-main { min-width: 0; flex: 1; display: grid; gap: 5px; }
 .session-project, .session-meta, .session-status, .ticket-meta {
   display: flex;
   align-items: center;
@@ -340,7 +340,19 @@ h4 { margin: 0; font-size: 13px; }
 .session-status[data-status="blocked"] { color: var(--triage-tag); }
 .session-status[data-status="stalled"] { color: var(--blocked-tag); }
 .session-status[data-status="done"] { color: var(--ready-tag); }
-.session-card:has(.harness-icon[data-status="ended"]) { opacity: .55; }
+.session-card:has(.session-project > .harness-icon[data-status="ended"]) { opacity: .55; }
+.session-agents { margin: 7px 0 0 15px; font-size: 12px; }
+.agent-tree, .agent-children { list-style: none; margin: 0; padding: 0; }
+.agent-tree { margin-top: 6px; }
+.agent-children { margin-left: 13px; padding-left: 13px; border-left: 1px solid var(--line); }
+.agent-node { position: relative; padding: 4px 0; }
+.agent-children > .agent-node::before { content: ""; position: absolute; left: -13px; top: 16px; width: 10px; border-top: 1px solid var(--line); }
+.agent-row { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; }
+.agent-row .harness-icon { width: 20px; height: 20px; }
+.agent-row .harness-icon .glyph { font-size: 13px; }
+.agent-row .harness-icon[data-harness="codex"] .glyph { font-size: 16px; }
+.agent-row .harness-icon::after { width: 11px; height: 11px; font-size: 9px; }
+.agent-name { font-weight: 600; overflow-wrap: anywhere; }
 .harness-icon { --status-color: var(--muted); position: relative; display: inline-grid; place-items: center;
   width: 30px; height: 30px; flex: none; color: var(--status-color); }
 .harness-icon::before { content: ""; position: absolute; inset: 1px; border: 2px solid currentColor; border-radius: 50%; }

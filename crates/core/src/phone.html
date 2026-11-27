@@ -108,6 +108,21 @@
   .picker-back { min-height: 44px; margin: 0 0 12px; color: var(--accent); font-weight: 600; }
   .session-header { padding: 8px 0 16px; border-bottom: 1px solid var(--line); margin-bottom: 8px; }
   .session-header h2 { margin: 0 0 6px; font-size: 24px; overflow-wrap: anywhere; }
+  .agent-section { margin: 16px 0 0; }
+  .agent-section h3 { margin: 0 0 8px; font-size: 13px; color: var(--muted); }
+  .agent-tree, .agent-children { list-style: none; margin: 0; padding: 0; }
+  .agent-children { margin-left: 15px; padding-left: 15px; border-left: 1px solid var(--line); }
+  .agent-node { position: relative; padding: 5px 0; }
+  .agent-children > .agent-node::before { content: ""; position: absolute; left: -15px; top: 19px; width: 12px; border-top: 1px solid var(--line); }
+  .agent-row { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; min-width: 0; font-size: 13px; }
+  .agent-row .harness-icon { width: 22px; height: 22px; }
+  .agent-row .harness-icon .glyph { font-size: 14px; }
+  .agent-row .harness-icon[data-harness="codex"] .glyph { font-size: 17px; }
+  .agent-row .harness-icon::after { width: 12px; height: 12px; font-size: 10px; }
+  .agent-row .agent-name { font-weight: 600; overflow-wrap: anywhere; }
+  .agent-row .agent-detail { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .agent-row[data-status="blocked"] .agent-status { color: var(--blocked); }
+  .agent-count { color: var(--muted); }
 
   #detail { overflow-wrap: anywhere; }
   #detail-title { font-size: 25px; line-height: 1.18; margin: 8px 0 16px; }
@@ -359,6 +374,38 @@
     return meta;
   }
 
+  function agentCount(agents) {
+    return (agents || []).reduce((count, agent) => count + 1 + agentCount(agent.children), 0);
+  }
+
+  function updateAgentTree(list, agents, harness) {
+    const existing = new Map(Array.from(list.children, item => [item.dataset.agentId, item]));
+    let position = list.firstElementChild;
+    for (const agent of agents) {
+      let item = existing.get(agent.agent_id);
+      if (!item) {
+        item = el('li', { className: 'agent-node', role: 'treeitem' },
+          el('div', { className: 'agent-row' }, harnessIcon({ harness, status: agent.status }),
+            el('span', { className: 'agent-name' }), el('span', { className: 'agent-status' }),
+            el('span', { className: 'agent-detail' })),
+          el('ul', { className: 'agent-children', role: 'group' }));
+        item.dataset.agentId = agent.agent_id;
+      }
+      const row = item.firstElementChild;
+      row.dataset.status = agent.status;
+      row.firstElementChild.dataset.status = agent.status;
+      row.children[1].textContent = agent.agent_type || 'Subagent';
+      row.children[2].textContent = sessionLabels[agent.status] || agent.status;
+      row.children[3].textContent = `${elapsed(agent.elapsed_seconds)} · ${agent.tool_count} ${agent.tool_count === 1 ? 'tool' : 'tools'}`;
+      updateAgentTree(item.lastElementChild, agent.children || [], harness);
+      item.lastElementChild.hidden = !agent.children?.length;
+      if (item !== position) list.insertBefore(item, position);
+      position = item.nextElementSibling;
+      existing.delete(agent.agent_id);
+    }
+    for (const item of existing.values()) item.remove();
+  }
+
   async function responseError(response, message) {
     const body = await response.json().catch(() => null);
     if (typeof body?.error === 'string' && body.error) return body.error;
@@ -423,13 +470,14 @@
           harnessIcon(session), el('span', { className: 'session-label' }));
         sessionCards.set(sid, card);
       }
-      const snapshot = JSON.stringify(session);
+      const snapshot = JSON.stringify([session.harness, session.status, session.project_folder,
+        session.elapsed_seconds, session.tool_count, agentCount(session.agents)]);
       if (card.dataset.snapshot !== snapshot) {
         card.dataset.snapshot = snapshot;
         card.dataset.status = session.status;
         card.firstElementChild.dataset.status = session.status;
         card.lastElementChild.replaceChildren(el('strong', { className: 'session-name', textContent: projectName(session.project_folder) }),
-          sessionMeta(session));
+          sessionMeta(session), ...(agentCount(session.agents) ? [el('span', { className: 'agent-count', textContent: `${agentCount(session.agents)} subagents` })] : []));
       }
       if (card !== position) {
         const focused = document.activeElement === card;
@@ -452,16 +500,32 @@
     const session = sessions?.find(item => item.session_id === sid);
     const header = $('session-header');
     if (sessionError || !session) {
+      delete header.dataset.sid;
       header.replaceChildren(el('p', { className: 'empty', textContent: sessionError || 'Loading agent session…' }));
       return;
     }
-    const meta = sessionMeta(session);
-    meta.prepend(harnessIcon(session));
-    header.replaceChildren(el('h2', { textContent: projectName(session.project_folder) }), meta,
-      el('p', { className: 'project-path', textContent: session.project_folder }),
-      el('p', { className: 'session-meta', textContent: `Last event ${elapsed(session.last_event_seconds)} ago` }),
-      el('button', { type: 'button', className: 'action', textContent: 'Pending tickets',
-        onclick: () => openPage('tickets', sid) }));
+    if (header.dataset.sid !== sid) {
+      header.dataset.sid = sid;
+      header.replaceChildren(el('h2'), el('span', { className: 'session-meta' }),
+        el('p', { className: 'project-path' }), el('p', { className: 'session-meta' }),
+        el('button', { type: 'button', className: 'action', textContent: 'Pending tickets',
+          onclick: () => openPage('tickets', sid) }),
+        el('section', { className: 'agent-section', ariaLabel: 'Subagents' },
+          el('h3', { textContent: 'Subagents' }), el('ul', { className: 'agent-tree', role: 'tree', ariaLabel: 'Subagents' })));
+    }
+    header.children[0].textContent = projectName(session.project_folder);
+    const meta = header.children[1];
+    if (!meta.children.length) meta.append(harnessIcon(session), ...sessionMeta(session).childNodes);
+    meta.children[0].dataset.status = session.status;
+    meta.children[2].textContent = sessionLabels[session.status] || session.status;
+    meta.children[3].textContent = elapsed(session.elapsed_seconds);
+    meta.children[4].textContent = `${session.tool_count} ${session.tool_count === 1 ? 'tool' : 'tools'}`;
+    meta.dataset.status = session.status;
+    header.children[2].textContent = session.project_folder;
+    header.children[3].textContent = `Last event ${elapsed(session.last_event_seconds)} ago`;
+    const section = header.lastElementChild;
+    section.hidden = !session.agents?.length;
+    if (!section.hidden) updateAgentTree(section.lastElementChild, session.agents, session.harness);
     if (!tabs().some(t => t.id === active)) {
       active = session.harness;
       render();

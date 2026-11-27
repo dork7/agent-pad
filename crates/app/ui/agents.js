@@ -209,6 +209,34 @@ function sessionIcon(session) {
   return icon;
 }
 
+function updateSessionAgentTree(list, agents, harness) {
+  const existing = new Map(Array.from(list.children, item => [item.dataset.agentId, item]));
+  let position = list.firstElementChild;
+  for (const agent of agents) {
+    let item = existing.get(agent.agent_id);
+    if (!item) {
+      item = el("li", { className: "agent-node", role: "treeitem" },
+        el("div", { className: "agent-row" }, sessionIcon({ harness, status: agent.status }),
+          el("span", { className: "agent-name" }), el("span", { className: "session-status" }),
+          el("span", { className: "muted numerical" })),
+        el("ul", { className: "agent-children", role: "group" }));
+      item.dataset.agentId = agent.agent_id;
+    }
+    const row = item.firstElementChild;
+    row.children[0].dataset.status = agent.status;
+    row.children[1].textContent = agent.agent_type || "Subagent";
+    row.children[2].dataset.status = agent.status;
+    row.children[2].textContent = sessionStatuses[agent.status] ?? agent.status;
+    row.children[3].textContent = `${elapsedTime(agent.elapsed_seconds)} · ${agent.tool_count} ${agent.tool_count === 1 ? "tool" : "tools"}`;
+    updateSessionAgentTree(item.lastElementChild, agent.children || [], harness);
+    item.lastElementChild.hidden = !agent.children?.length;
+    if (item !== position) list.insertBefore(item, position);
+    position = item.nextElementSibling;
+    existing.delete(agent.agent_id);
+  }
+  for (const item of existing.values()) item.remove();
+}
+
 function sessionCard(session) {
   const name = el("b", { className: "path" });
   const harness = el("span", { className: "muted" });
@@ -217,13 +245,16 @@ function sessionCard(session) {
   status.append(statusText);
   const elapsed = el("span", { className: "muted numerical" });
   const tools = el("span", { className: "muted numerical" });
-  const card = { session, name, harness, status, statusText, elapsed, tools };
+  const agents = el("div", { className: "session-agents", ariaLabel: "Subagents", hidden: true },
+    el("strong", { className: "muted", textContent: "Subagents" }),
+    el("ul", { className: "agent-tree", role: "tree", ariaLabel: "Subagents" }));
+  const card = { session, name, harness, status, statusText, elapsed, tools, agents };
   const action = button("Pending tickets", "", () => openTickets(card.session, action));
   card.action = action;
   card.item = el("li", { className: "session-card" },
     el("div", { className: "session-main" },
       el("div", { className: "session-project" }, sessionIcon(session), name, harness),
-      el("div", { className: "session-meta" }, status, elapsed, tools)),
+      el("div", { className: "session-meta" }, status, elapsed, tools), agents),
     action);
   return card;
 }
@@ -263,6 +294,8 @@ async function refreshSessions() {
       card.elapsed.textContent = elapsedTime(session.elapsed_seconds);
       card.elapsed.setAttribute("aria-label", `Elapsed: ${card.elapsed.textContent}`);
       card.tools.textContent = `${session.tool_count} ${session.tool_count === 1 ? "tool" : "tools"}`;
+      card.agents.hidden = !session.agents?.length;
+      if (!card.agents.hidden) updateSessionAgentTree(card.agents.lastElementChild, session.agents, session.harness);
       card.action.setAttribute("aria-label", `Pending tickets for ${project} (${card.harness.textContent})`);
     }
     setMessage("sessions-message", sessions.length ? null : "No sessions detected. Install hooks in Session settings, then start or resume a session.");
