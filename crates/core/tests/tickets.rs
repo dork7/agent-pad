@@ -9,7 +9,9 @@ use std::time::Duration;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use serde_json::json;
 use agent_pad_core::testing::{FakeClock, RecordingPaster};
-use agent_pad_core::{Core, CoreConfig, SettingsError, Ticket, TicketSummary};
+use agent_pad_core::{
+    Core, CoreConfig, GithubIssue, GithubIssues, SettingsError, Ticket, TicketSummary,
+};
 use tempfile::TempDir;
 
 const LIST: &str = "/sessions/work/tickets";
@@ -337,4 +339,68 @@ fn paired_phones_can_list_and_fetch_tickets() {
         get(&ticket_path(&list_url, "../01-phone.md")).set("Cookie", &cookie),
         404,
     );
+}
+
+struct FakeGithub(Vec<GithubIssue>);
+
+impl GithubIssues for FakeGithub {
+    fn open_issues(&self, _: &Path) -> Vec<GithubIssue> {
+        self.0.clone()
+    }
+}
+
+fn issue(number: u32, title: &str, body: &str) -> GithubIssue {
+    GithubIssue { number, title: title.into(), body: body.into() }
+}
+
+#[test]
+fn open_github_issues_without_a_local_ticket_are_listed_as_pending_tickets() {
+    let home = TempDir::new().unwrap();
+    let project = TempDir::new().unwrap();
+    let core = start(&home);
+    core.set_github_issues(Arc::new(FakeGithub(vec![
+        issue(41, "Fix login redirect", "Steps:\n- [x] repro\n- [ ] fix\n"),
+        issue(7, "Linked to a local file", ""),
+    ])));
+    write(
+        project.path(),
+        ".scratch/app/issues/02-local.md",
+        "# 02: Local\n\n**Status:** done\n\n**GitHub:** #7\n",
+    );
+    start_session(&core, "work", project.path());
+
+    let tickets = list(&core);
+
+    // #7 is already covered by a local file (which is done), so only #41 is added.
+    assert_eq!(tickets.len(), 1);
+    assert_eq!(tickets[0].id, "github/41");
+    assert_eq!(tickets[0].title, "Fix login redirect");
+    assert_eq!((tickets[0].done, tickets[0].total), (1, 2));
+    assert!(!tickets[0].blocked);
+
+    let detail: Ticket = get(&core.url(&ticket_path(LIST, "github/41")))
+        .call()
+        .unwrap()
+        .into_json()
+        .unwrap();
+    assert!(detail.markdown.contains("Fix login redirect"));
+    assert!(detail.markdown.contains("- [ ] fix"));
+}
+
+#[test]
+fn github_issues_come_after_local_tickets_and_a_failed_fetch_changes_nothing() {
+    let home = TempDir::new().unwrap();
+    let project = TempDir::new().unwrap();
+    let core = start(&home);
+    write(project.path(), ".scratch/app/issues/05-local.md", "# 05: Local\n");
+    start_session(&core, "work", project.path());
+
+    core.set_github_issues(Arc::new(FakeGithub(vec![issue(3, "Remote", "")])));
+    let ids: Vec<_> = list(&core).into_iter().map(|t| t.id).collect();
+    assert_eq!(ids, [".scratch/app/issues/05-local.md", "github/3"]);
+
+    // gh missing, offline or not logged in: the source returns nothing.
+    core.set_github_issues(Arc::new(FakeGithub(Vec::new())));
+    let ids: Vec<_> = list(&core).into_iter().map(|t| t.id).collect();
+    assert_eq!(ids, [".scratch/app/issues/05-local.md"]);
 }

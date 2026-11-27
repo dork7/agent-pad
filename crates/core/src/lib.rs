@@ -18,6 +18,7 @@ pub mod settings;
 mod sharing;
 pub mod skills;
 pub mod testing;
+mod github;
 mod tickets;
 pub mod views;
 
@@ -30,11 +31,12 @@ pub use clock::{Clock, SystemClock};
 pub use harness::{CustomHarness, Harness};
 pub use hooks::{ClaudeHooksPreview, CodexHooksPreview, CODEX_HOOKS_RESTART_NOTICE};
 pub use hud::{hud_summaries, quota_ring, HudRing, HudSummary};
+pub use github::{GithubIssue, GithubIssues, SystemGithubIssues};
 pub use paste::{PadWindow, Paster, SessionWindow, SystemPaster, SystemSessionWindow, WindowTarget};
 pub use phones::{Phone, PhoneError};
 pub use profiles::{Profile, ProfileError};
 pub use saved_text::{Preset, PresetRef, Snippet, SNIPPETS_CHIP};
-pub use sessions::{Session, SessionStatus, CLAUDE_HOOKS_RESTART_NOTICE};
+pub use sessions::{AgentNode, Session, SessionStatus, CLAUDE_HOOKS_RESTART_NOTICE};
 pub use settings::{Settings, SettingsError};
 pub use sharing::SharingInfo;
 pub use skills::{Directory, Skill};
@@ -68,6 +70,7 @@ pub(crate) struct State {
     pub pad: Arc<RwLock<Arc<dyn PadWindow>>>,
     pub window: Arc<RwLock<Arc<dyn SessionWindow>>>,
     pub pastes: paste::PasteQueue,
+    pub github: RwLock<Arc<dyn GithubIssues>>,
     pub settings: Mutex<Settings>,
     pub phones: Mutex<phones::Runtime>,
     pub sessions: Mutex<sessions::Sessions>,
@@ -187,6 +190,7 @@ impl Core {
             pastes: paste::PasteQueue::start(config.paster, pad.clone(), window.clone()),
             pad,
             window,
+            github: RwLock::new(Arc::new(SystemGithubIssues::default())),
             sessions: Mutex::new(sessions::Sessions::with_threshold(stuck_threshold)),
         });
         let server = server::start(state.clone())?;
@@ -230,6 +234,11 @@ impl Core {
     /// Replace window raising, for example with a recording fake in tests.
     pub fn set_session_window(&self, window: Arc<dyn SessionWindow>) {
         *self.state.window.write().unwrap() = window;
+    }
+
+    /// Replace where GitHub issues come from, for example with a fake in tests.
+    pub fn set_github_issues(&self, issues: Arc<dyn GithubIssues>) {
+        *self.state.github.write().unwrap() = issues;
     }
 
     /// Pastes the Invocation of `skill_id` at the cursor of the focused app, as a phone tap

@@ -123,6 +123,7 @@ fn codex_hooks_track_permission_requests_interrupts_and_session_end() {
             elapsed_seconds: 300,
             last_event_seconds: 0,
             tool_count: 2,
+            agents: Vec::new(),
         }]
     );
     clock.advance(Duration::from_secs(600));

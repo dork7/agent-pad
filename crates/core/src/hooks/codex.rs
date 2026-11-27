@@ -16,6 +16,8 @@ const EVENTS: &[(&str, Option<&str>)] = &[
     ("PreToolUse", None),
     ("PostToolUse", None),
     ("PermissionRequest", None),
+    ("SubagentStart", None),
+    ("SubagentStop", None),
     ("Stop", None),
     ("Interrupt", None),
     ("SessionEnd", None),
@@ -28,7 +30,10 @@ pub const CODEX_HOOKS_RESTART_NOTICE: &str =
 pub(super) fn event(payload: &HookEvent) -> Option<Event> {
     match payload.hook_event_name.as_str() {
         "SessionStart" if payload.source.as_deref() != Some("compact") => Some(Event::Start),
-        "UserPromptSubmit" | "PostToolUse" => Some(Event::Working),
+        "UserPromptSubmit" => Some(Event::Prompt),
+        "PostToolUse" => Some(Event::Working),
+        "SubagentStart" => Some(Event::SubagentStart),
+        "SubagentStop" => Some(Event::SubagentStop),
         "PreToolUse" => Some(Event::ToolStarted),
         "PermissionRequest" => Some(Event::Permission),
         "Stop" | "Interrupt" => Some(Event::Stop),

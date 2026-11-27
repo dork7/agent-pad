@@ -9,6 +9,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{Core, SettingsError, State};
 
+/// Ticket ids of GitHub-only issues are `github/<issue number>`.
+pub const GITHUB_PREFIX: &str = "github/";
 pub const DEFAULT_TICKET_PATTERN: &str = ".scratch/*/issues/*.md";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -129,7 +131,7 @@ impl State {
             return Ok(Vec::new());
         }
         // Confine all descendant opens to the project handle, including symlink resolution.
-        let root = match Dir::open_ambient_dir(session.project_folder, ambient_authority()) {
+        let root = match Dir::open_ambient_dir(&session.project_folder, ambient_authority()) {
             Ok(root) => root,
             Err(error)
                 if matches!(
@@ -173,7 +175,9 @@ impl State {
                 pending.insert(summary.number);
             }
         }
-        Ok(tickets
+        let linked: HashSet<u32> = github.keys().copied().collect();
+        let project = session.project_folder.clone();
+        let mut all: Vec<Ticket> = tickets
             .into_iter()
             .map(|(mut ticket, _)| {
                 let summary = &mut ticket.summary;
@@ -186,7 +190,23 @@ impl State {
                     .any(|number| pending.contains(number));
                 ticket
             })
-            .collect())
+            .collect();
+        // Open GitHub issues that no local ticket links to appear as extra tickets.
+        let issues = self.github.read().unwrap().clone().open_issues(&project);
+        let mut extra: Vec<_> = issues
+            .into_iter()
+            .filter(|issue| !linked.contains(&issue.number))
+            .collect();
+        extra.sort_by_key(|issue| issue.number);
+        for issue in extra {
+            let markdown = format!(
+                "# {}\n\n**GitHub:** #{}\n\n{}\n",
+                issue.title, issue.number, issue.body
+            );
+            let id = format!("{GITHUB_PREFIX}{}", issue.number);
+            all.push(parse(id, issue.number, markdown).0);
+        }
+        Ok(all)
     }
 }
 
@@ -253,6 +273,14 @@ fn segment_matches(pattern: &str, name: &str) -> bool {
         middle = rest;
     }
     true
+}
+
+/// What `{path}` becomes: the file path, or for a GitHub-only issue how to read it.
+fn where_to_read(ticket_id: &str) -> String {
+    match ticket_id.strip_prefix(GITHUB_PREFIX) {
+        Some(number) => format!("GitHub issue #{number} (read it with `gh issue view {number}`)"),
+        None => ticket_id.to_owned(),
+    }
 }
 
 fn ticket_number(id: &str) -> Option<u32> {
@@ -416,7 +444,7 @@ impl State {
             .ok_or(ImplementError::Ticket(TicketError::UnknownSession))?;
         let text = self
             .implement_template(&harness)
-            .replace(TICKET_PATH, ticket_id)
+            .replace(TICKET_PATH, &where_to_read(ticket_id))
             .trim_end()
             .to_string();
         let target = self.sessions.lock().unwrap().target(session_id)

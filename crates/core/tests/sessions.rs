@@ -134,6 +134,7 @@ fn claude_hook_events_update_the_session_and_count_each_tool_once() {
         elapsed_seconds: 42,
         last_event_seconds: 599,
         tool_count: 1,
+        agents: Vec::new(),
     };
     assert_eq!(sessions(&core), vec![expected.clone()]);
     assert_eq!(core.list_sessions(), vec![expected]);

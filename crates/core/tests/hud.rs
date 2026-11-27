@@ -11,6 +11,7 @@ fn session(harness: &str, status: SessionStatus) -> Session {
         elapsed_seconds: 0,
         last_event_seconds: 0,
         tool_count: 0,
+        agents: Vec::new(),
     }
 }
 

@@ -9,7 +9,9 @@ use std::time::Duration;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use serde_json::{json, Value};
 use agent_pad_core::testing::{FakeClock, Recorded, RecordingPaster};
-use agent_pad_core::{Core, CoreConfig, SessionWindow, SettingsError, WindowTarget};
+use agent_pad_core::{
+    Core, CoreConfig, GithubIssue, GithubIssues, SessionWindow, SettingsError, WindowTarget,
+};
 use tempfile::TempDir;
 
 const READY: &str = ".scratch/app/issues/02-ready.md";
@@ -219,4 +221,25 @@ fn a_phone_cannot_see_or_implement_tickets_of_sessions_outside_its_view() {
         403
     );
     assert!(w.paster.events().is_empty());
+}
+
+struct OneIssue;
+
+impl GithubIssues for OneIssue {
+    fn open_issues(&self, _: &Path) -> Vec<GithubIssue> {
+        vec![GithubIssue { number: 41, title: "Remote".into(), body: String::new() }]
+    }
+}
+
+#[test]
+fn implementing_a_github_only_issue_tells_the_agent_how_to_read_it() {
+    let w = world();
+    w.core.set_github_issues(Arc::new(OneIssue));
+
+    let (status, body) = post(&implement_url(&w.core.url(""), "claude-1", "github/41"), None);
+
+    assert_eq!(status, 200);
+    let text = "Implement the ticket at GitHub issue #41 (read it with `gh issue view 41`)";
+    assert_eq!(body["pasted"], text);
+    assert_eq!(w.paster.events(), [Recorded::Paste(text.into()), Recorded::Enter]);
 }

@@ -183,7 +183,7 @@ fn main() -> tauri::Result<()> {
         )
         .setup(|app| {
             #[cfg(target_os = "macos")]
-            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+            app.set_activation_policy(tauri::ActivationPolicy::Regular);
 
             let core = Core::start(CoreConfig {
                 home: app.path().home_dir()?,
@@ -282,5 +282,19 @@ fn main() -> tauri::Result<()> {
             hotkey::get_hotkey,
             hotkey::set_hotkey,
         ])
-        .run(tauri::generate_context!())
+        .build(tauri::generate_context!())?
+        .run(|app, event| {
+            // Clicking the Dock icon while the Console is hidden brings it back.
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Reopen { .. } = event {
+                if let Some(pad) = app.get_webview_window(PAD) {
+                    if let Err(error) = show_pad(&pad) {
+                        eprintln!("Agent Pad could not show the window: {error}");
+                    }
+                }
+            }
+            #[cfg(not(target_os = "macos"))]
+            let _ = (app, event);
+        });
+    Ok(())
 }

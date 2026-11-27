@@ -18,7 +18,11 @@ use serde_json::{json, Value};
 use tempfile::NamedTempFile;
 use tiny_http::{Request, Response};
 
-use crate::{server, sessions::Event, Core, State};
+use crate::{
+    server,
+    sessions::{is_spawn_tool, Actor, Event},
+    Core, State,
+};
 
 mod codex;
 pub use codex::{CodexHooksPreview, CODEX_HOOKS_RESTART_NOTICE};
@@ -32,6 +36,8 @@ const EVENTS: &[(&str, Option<&str>)] = &[
     ("PostToolUseFailure", None),
     ("PermissionRequest", None),
     ("Notification", Some("permission_prompt")),
+    ("SubagentStart", None),
+    ("SubagentStop", None),
     ("Stop", None),
     ("SessionEnd", None),
 ];
@@ -66,6 +72,21 @@ struct HookEvent {
     source: Option<String>,
     notification_type: Option<String>,
     is_interrupt: Option<bool>,
+    /// Set on events fired by a subagent (and on its start and stop).
+    agent_id: Option<String>,
+    agent_type: Option<String>,
+    tool_name: Option<String>,
+}
+
+impl HookEvent {
+    fn actor(&self) -> Actor {
+        Actor {
+            agent: self.agent_id.clone().filter(|id| !id.is_empty()),
+            agent_type: self.agent_type.clone().filter(|kind| !kind.is_empty()),
+            spawns_agent: self.hook_event_name == "PreToolUse"
+                && self.tool_name.as_deref().is_some_and(is_spawn_tool),
+        }
+    }
 }
 
 pub(crate) fn receive(
@@ -112,6 +133,7 @@ pub(crate) fn receive(
         Harness::Codex => codex::event(&payload),
     };
     if let Some(event) = event {
+        let actor = payload.actor();
         let process_id = request.headers().iter()
             .find(|header| header.field.equiv("X-Agent-Pad-Process-Id"))
             .and_then(|header| header.value.as_str().parse::<u32>().ok())
@@ -121,6 +143,7 @@ pub(crate) fn receive(
             payload.session_id,
             payload.cwd,
             process_id,
+            actor,
             event,
             state.clock.now(),
         );
@@ -131,7 +154,10 @@ pub(crate) fn receive(
 fn claude_event(payload: &HookEvent) -> Option<Event> {
     match payload.hook_event_name.as_str() {
         "SessionStart" if payload.source.as_deref() != Some("compact") => Some(Event::Start),
-        "UserPromptSubmit" | "PostToolUse" => Some(Event::Working),
+        "UserPromptSubmit" => Some(Event::Prompt),
+        "PostToolUse" => Some(Event::Working),
+        "SubagentStart" => Some(Event::SubagentStart),
+        "SubagentStop" => Some(Event::SubagentStop),
         "PreToolUse" => Some(Event::ToolStarted),
         "PermissionRequest" => Some(Event::Permission),
         "Notification" if payload.notification_type.as_deref() == Some("permission_prompt") => {
